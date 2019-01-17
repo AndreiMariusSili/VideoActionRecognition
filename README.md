@@ -1,1 +1,1 @@
-# TimeAwareVariationalAutoEncoder
+# TimeAlignedVariationalAutoEncoder
