@@ -1,0 +1,16 @@
+name: mt
+channels:
+  - defaults
+  - conda-forge
+  - pytorch
+dependencies:
+  - torch
+  - torchvision
+  - matplotlib
+  - bokeh
+  - scikit-image
+  - opencv
+  - scikit-video
+  - jupyter
+prefix: /Users/Play/miniconda3/envs/mt
+
