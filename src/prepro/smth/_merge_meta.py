@@ -1,6 +1,6 @@
+from env import logging
 import constants as ct
 import helpers as hp
-from env import logging
 
 
 def merge_meta() -> None:

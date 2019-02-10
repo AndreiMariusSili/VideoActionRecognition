@@ -4,7 +4,8 @@ from typing import List
 
 @dataclasses.dataclass
 class VideoMeta:
-    fields = ['id', 'framerate', 'length', 'height', 'width', 'label', 'path', 'placeholders', 'template', 'template_id']
+    fields = ['id', 'framerate', 'length', 'height', 'width', 'label', 'path', 'placeholders', 'template',
+              'template_id']
     id: int
     framerate: int
     length: int

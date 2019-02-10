@@ -1,25 +1,22 @@
-from torch.utils.data import dataloader
+from torch.utils import data as thd
 from typing import List, Tuple
-import torch.utils.data
 import pathlib as pl
 import pandas as pd
 import numpy as np
+import os
 
-from pipeline._transforms import TransformComposition, VideoPad, FramePad
-from pipeline._video_meta import VideoMeta
-from pipeline._label import Label
-from pipeline._video import Video
+import pipeline as pipe
 import constants as ct
 import helpers as hp
 
 
-class SmthDataset(torch.utils.data.dataset.Dataset):
+class SmthDataset(thd.Dataset):
     presenting: bool
     cut: float
     meta: pd.DataFrame
-    transform: TransformComposition
+    transform: pipe.TransformComposition
 
-    def __init__(self, meta: pl.Path, cut: float, transform: TransformComposition = None, split: str = None):
+    def __init__(self, meta: pl.Path, cut: float, transform: pipe.TransformComposition = None, split: str = None):
         """Initialize a smth-smth dataset from the DataFrame containing meta information."""
         assert 0.0 <= cut <= 1.0, f'Cut should be between 0.0, and 1.0. Received: {cut}.'
         assert split in ['train', 'valid', None], f'Split can be one of: train, valid. Given: {split}.'
@@ -38,10 +35,10 @@ class SmthDataset(torch.utils.data.dataset.Dataset):
             self.channel_first = False
 
     def __getitem__(self, item: int):
-        video_meta = VideoMeta(**self.meta.iloc[item][VideoMeta.fields].to_dict())
+        video_meta = pipe.VideoMeta(**self.meta.iloc[item][pipe.VideoMeta.fields].to_dict())
 
-        video = Video(video_meta, self.cut)
-        label = Label(video_meta)
+        video = pipe.Video(video_meta, self.cut)
+        label = pipe.Label(video_meta)
         if self.transform is not None:
             video.data = self.transform(video.data)
 
@@ -57,20 +54,16 @@ class SmthDataset(torch.utils.data.dataset.Dataset):
         self.presenting = True
         return f""" Something-Something Dataset: {len(self)} x {self[0]}"""
 
-    def collate(self, batch: List[Tuple[np.ndarray, Label]]):
+    def collate(self, batch: List[Tuple[np.ndarray, pipe.Label]]):
         videos, labels = zip(*batch)
         ml, mh, mw = self._max_dimensions(videos)
         videos = self._pad_videos(videos, ml)
 
-        return dataloader.default_collate(videos), dataloader.default_collate(labels)
-
-    def _pad_frames(self, videos: Tuple[np.ndarray], mh: int, mw: int) -> Tuple[np.ndarray]:
-        """Pad a tuple of videos to the same width and height."""
-        return tuple(FramePad(mh, mw, self.channel_first)(video) for video in videos)
+        return thd.dataloader.default_collate(videos), thd.dataloader.default_collate(labels)
 
     def _pad_videos(self, videos: Tuple[np.ndarray], ml) -> Tuple[np.ndarray]:
         """Pad a tuple of videos to the same length."""
-        return tuple(VideoPad(ml)(video) for video in videos)
+        return tuple(pipe.VideoPad(ml)(video) for video in videos)
 
     def _max_dimensions(self, videos: Tuple[np.ndarray]) -> Tuple[int, int, int]:
         """Get the maximum length, height, and width of a batch of videos."""
@@ -85,3 +78,16 @@ class SmthDataset(torch.utils.data.dataset.Dataset):
                 mw = w
 
         return ml, mh, mw
+
+
+if __name__ == '__main__':
+    os.chdir('/Users/Play/Code/AI/master-thesis/src')
+    base_transform = pipe.TransformComposition([
+        pipe.Resize(80, 'inter_area'),
+        pipe.Normalize(255),
+        pipe.Standardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
+        pipe.FramePad(ct.IMAGE_NET_STD_HEIGHT, ct.IMAGE_NET_STD_WIDTH, False),
+        pipe.ToVolumeArray()
+    ])
+    dataset = SmthDataset(ct.SMTH_META_TRAIN, 0.3, base_transform)
+    x, y = dataset[0]

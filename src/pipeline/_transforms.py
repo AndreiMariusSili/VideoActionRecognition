@@ -1,9 +1,14 @@
-
 from typing import Tuple, List, Union, Dict, Any
 import skimage.transform
 import numpy as np
 import cv2
 import abc
+
+__all__ = [
+    'VideoTransform', 'TransformComposition', 'Rescale',
+    'Resize', 'Normalize', 'FramePad', 'VideoPad',
+    'Standardize', 'ToVolumeArray', 'ToStackedArray'
+]
 
 
 class VideoTransform(abc.ABC):
@@ -112,7 +117,7 @@ class FramePad(VideoTransform):
     def __call__(self, video: np.ndarray) -> np.ndarray:
         """Pad every frame of a video to bring it to dimension std_height X std_width."""
         if self.channel_first:
-            l, c, h, w,  = video.shape
+            l, c, h, w, = video.shape
         else:
             l, h, w, c = video.shape
         left, top, right, bottom = self.__padding_values(h, w)

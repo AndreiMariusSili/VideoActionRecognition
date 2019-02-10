@@ -1,12 +1,10 @@
-from torch.utils.data import DataLoader
 from typing import Optional, Dict, Any, Union, Tuple
-
+from torch.utils import data as thd
 from tqdm import tqdm
 import pandas as pd
 import os
 
-from pipeline._transforms import TransformComposition, Normalize, Standardize, ToVolumeArray, ToStackedArray, Resize, FramePad
-from pipeline.smth._dataset import SmthDataset
+import pipeline as pipe
 import constants as ct
 import helpers as hp
 
@@ -18,12 +16,12 @@ class SmthDataBunch(object):
     dl_args: Dict[str, Any]
     test: bool
     stats: pd.DataFrame
-    train_set: 'SmthDataset'
-    train_loader: 'DataLoader'
-    valid_set: 'SmthDataset'
-    valid_loader: 'DataLoader'
-    test_set: Optional['SmthDataset']
-    test_loader: Optional['DataLoader']
+    train_set: 'pipe.SmthDataset'
+    train_loader: 'thd.DataLoader'
+    valid_set: 'pipe.SmthDataset'
+    valid_loader: 'thd.DataLoader'
+    test_set: Optional['pipe.SmthDataset']
+    test_loader: Optional['thd.DataLoader']
 
     def __init__(self, cut: float, shape: str, size: Union[int, Tuple[int, int]], test: bool, dl_args: Dict[str, Any]):
         assert shape in ['stack', 'volume'], f'Unknown shape {shape}. Possible shapes are "stack" and "volume".'
@@ -35,22 +33,20 @@ class SmthDataBunch(object):
         self.dl_args = dl_args
 
         self.stats = hp.read_smth_stats()
-        base_transform = TransformComposition([
-            Resize(80, 'inter_area'),
-            Normalize(255),
-            # Standardize((self.stats['mean_r'], self.stats['mean_g'], self.stats['mean_b']),
-            #             (self.stats['std_r'], self.stats['std_g'], self.stats['std_b'])),
-            Standardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
-            FramePad(ct.IMAGE_NET_STD_HEIGHT, ct.IMAGE_NET_STD_WIDTH, False),
-            ToVolumeArray() if self.shape == 'volume' else ToStackedArray()
+        base_transform = pipe.TransformComposition([
+            pipe.Resize(80, 'inter_area'),
+            pipe.Normalize(255),
+            pipe.Standardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
+            pipe.FramePad(ct.IMAGE_NET_STD_HEIGHT, ct.IMAGE_NET_STD_WIDTH, False),
+            pipe.ToVolumeArray() if self.shape == 'volume' else pipe.ToStackedArray()
         ])
-        self.train_set = SmthDataset(ct.SMTH_META_TRAIN, self.cut, transform=base_transform)
-        self.valid_set = SmthDataset(ct.SMTH_META_VALID, self.cut, transform=base_transform)
-        self.train_loader = DataLoader(self.train_set, collate_fn=self.train_set.collate, **self.dl_args)
-        self.valid_loader = DataLoader(self.valid_set, collate_fn=self.valid_set.collate, **self.dl_args)
+        self.train_set = pipe.SmthDataset(ct.SMTH_META_TRAIN, self.cut, transform=base_transform)
+        self.valid_set = pipe.SmthDataset(ct.SMTH_META_VALID, self.cut, transform=base_transform)
+        self.train_loader = thd.DataLoader(self.train_set, collate_fn=self.train_set.collate, **self.dl_args)
+        self.valid_loader = thd.DataLoader(self.valid_set, collate_fn=self.valid_set.collate, **self.dl_args)
         if self.test:
-            self.test_set = SmthDataset(ct.SMTH_META_TEST, self.cut, transform=base_transform)
-            self.test_loader = DataLoader(self.test_set, collate_fn=self.test_set.collate, **self.dl_args)
+            self.test_set = pipe.SmthDataset(ct.SMTH_META_TEST, self.cut, transform=base_transform)
+            self.test_loader = thd.DataLoader(self.test_set, collate_fn=self.test_set.collate, **self.dl_args)
         else:
             self.test_set = None
             self.test_loader = None

@@ -1,9 +1,8 @@
-import os
-import random
-import shutil
 from typing import Tuple
-
 import pandas as pd
+import shutil
+import random
+import os
 
 import constants as ct
 from env import logging

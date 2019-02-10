@@ -1,13 +1,11 @@
+import torchvision as thv
+from typing import Tuple
+from tqdm import tqdm
+from torch import nn
+import torch as th
 import os
 
-from torchvision import models
-from typing import Tuple
-from torch import nn
-import torch
-from tqdm import tqdm
-
-from pipeline.smth._databunch import SmthDataBunch
-
+import pipeline as pipe
 
 VGG_IN = 224
 CONV_OUT_C, CONV_OUT_H, CONV_OUT_W = 512, 7, 7
@@ -31,11 +29,11 @@ class VideoLSTM(nn.Module):
         self.num_classes = num_classes
         self.freeze_conv = freeze_conv
         self.freeze_fc = freeze_fc
-        self.__init_vgg(models.vgg16_bn(pretrained=True))
+        self.__init_vgg(thv.models.vgg16_bn(pretrained=True))
         self.__init_lstm()
         self.__init_classifier()
 
-    def forward(self, _in: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, _in: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
         """Forward pass for the whole videoLSTM network."""
         bs, sl, c, h, w = _in.size()
         vgg_out = self._vgg(_in)
@@ -44,10 +42,10 @@ class VideoLSTM(nn.Module):
 
         return _out, vgg_out
 
-    def _vgg(self, _in: torch.Tensor):
+    def _vgg(self, _in: th.Tensor):
         """Forward pass of the VGG network for each frame in the input."""
         bs, sl, c, h, w = _in.size()
-        vgg_out = torch.empty((bs, sl, VGG_OUT), dtype=torch.float32)
+        vgg_out = th.empty((bs, sl, VGG_OUT), dtype=th.float32)
         for i, x in enumerate(_in.split(1, dim=1)):
             x = x.view(bs, c, h, w)
             conv_out = self.conv(x)
@@ -56,7 +54,7 @@ class VideoLSTM(nn.Module):
 
         return vgg_out
 
-    def __init_vgg(self, vgg16: models.VGG):
+    def __init_vgg(self, vgg16: thv.models.VGG):
         """Initialize the VGG part of the network.
             Use all conv layers and all except last fc layers.
             Freeze parameters depending on self.freeze* properties.
@@ -97,12 +95,12 @@ class VideoLSTM(nn.Module):
 
 if __name__ == '__main__':
     os.chdir('/Users/Play/Code/AI/master-thesis/src')
-    bunch = SmthDataBunch(0.3, 'volume', 80, False, dict(batch_size=2, pin_memory=True, shuffle=False, num_workers=0))
+    dl_args = dict(batch_size=2, pin_memory=True, shuffle=False, num_workers=0)
+    bunch = pipe.SmthDataBunch(0.3, 'volume', 80, False, dl_args)
     model = VideoLSTM(10, True, False)
     loss_fn = nn.CrossEntropyLoss()
     for _i, (_x, _y) in tqdm(enumerate(bunch.train_loader), total=10):
-        y_hat, vgg_out = model(_x)
-        loss = loss_fn(y_hat, _y)
+        _y_hat, _vgg_out = model(_x)
+        loss = loss_fn(_y_hat, _y)
         loss.backward()
         break
-

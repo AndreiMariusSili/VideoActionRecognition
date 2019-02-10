@@ -1,1 +1,1 @@
-from prepro.smth import *
+from prepro import smth

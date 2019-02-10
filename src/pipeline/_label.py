@@ -1,13 +1,11 @@
-import numpy as np
-
-from pipeline._video_meta import VideoMeta
+import pipeline as pipe
 
 
 class Label(object):
     data: int
-    meta: VideoMeta
+    meta: pipe.VideoMeta
 
-    def __init__(self, meta: VideoMeta):
+    def __init__(self, meta: pipe.VideoMeta):
         """Initialize a Label object from a row in the meta DataFrame and an integer identifier."""
         self.meta = meta
         self.data = meta.template_id
