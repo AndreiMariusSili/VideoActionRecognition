@@ -48,7 +48,7 @@ class SmthDataset(torch.utils.data.dataset.Dataset):
         if self.presenting:
             self.presenting = False
             return video, label
-        return video.data, label.data
+        return video.data.astype(np.float32), label.data
 
     def __len__(self):
         return len(self.meta)
@@ -60,7 +60,6 @@ class SmthDataset(torch.utils.data.dataset.Dataset):
     def collate(self, batch: List[Tuple[np.ndarray, Label]]):
         videos, labels = zip(*batch)
         ml, mh, mw = self._max_dimensions(videos)
-        videos = self._pad_frames(videos, mh, mw)
         videos = self._pad_videos(videos, ml)
 
         return dataloader.default_collate(videos), dataloader.default_collate(labels)

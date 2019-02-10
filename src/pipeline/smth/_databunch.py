@@ -1,10 +1,11 @@
 from torch.utils.data import DataLoader
 from typing import Optional, Dict, Any, Union, Tuple
+
 from tqdm import tqdm
 import pandas as pd
 import os
 
-from pipeline._transforms import TransformComposition, Normalize, Standardize, ToVolumeArray, ToStackedArray, Resize
+from pipeline._transforms import TransformComposition, Normalize, Standardize, ToVolumeArray, ToStackedArray, Resize, FramePad
 from pipeline.smth._dataset import SmthDataset
 import constants as ct
 import helpers as hp
@@ -37,8 +38,10 @@ class SmthDataBunch(object):
         base_transform = TransformComposition([
             Resize(80, 'inter_area'),
             Normalize(255),
-            Standardize((self.stats['mean_r'], self.stats['mean_g'], self.stats['mean_b']),
-                        (self.stats['std_r'], self.stats['std_g'], self.stats['std_b'])),
+            # Standardize((self.stats['mean_r'], self.stats['mean_g'], self.stats['mean_b']),
+            #             (self.stats['std_r'], self.stats['std_g'], self.stats['std_b'])),
+            Standardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
+            FramePad(ct.IMAGE_NET_STD_HEIGHT, ct.IMAGE_NET_STD_WIDTH, False),
             ToVolumeArray() if self.shape == 'volume' else ToStackedArray()
         ])
         self.train_set = SmthDataset(ct.SMTH_META_TRAIN, self.cut, transform=base_transform)
