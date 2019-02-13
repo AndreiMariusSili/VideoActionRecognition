@@ -1,5 +1,6 @@
-from typing import Optional, Dict, Any, Union, Tuple
+from typing import Optional
 from torch.utils import data as thd
+from dataclasses import asdict
 from tqdm import tqdm
 import pandas as pd
 import os
@@ -10,12 +11,10 @@ import helpers as hp
 
 
 class SmthDataBunch(object):
-    cut: float
-    shape: str
-    size: Union[int, Tuple[int, int]]
-    dl_args: Dict[str, Any]
-    test: bool
+    ds_opts: pipe.DataSetOptions
+    dl_opts: pipe.DataLoaderOptions
     stats: pd.DataFrame
+
     train_set: 'pipe.SmthDataset'
     train_loader: 'thd.DataLoader'
     valid_set: 'pipe.SmthDataset'
@@ -23,39 +22,36 @@ class SmthDataBunch(object):
     test_set: Optional['pipe.SmthDataset']
     test_loader: Optional['thd.DataLoader']
 
-    def __init__(self, cut: float, shape: str, size: Union[int, Tuple[int, int]], test: bool, dl_args: Dict[str, Any]):
-        assert shape in ['stack', 'volume'], f'Unknown shape {shape}. Possible shapes are "stack" and "volume".'
+    def __init__(self, db_opts: pipe.DataBunchOptions, ds_opts: pipe.DataSetOptions, dl_opts: pipe.DataLoaderOptions):
+        assert db_opts.shape in ['stack', 'volume'], f'Unknown shape {db_opts.shape}.'
 
-        self.cut = cut
-        self.shape = shape
-        self.size = size
-        self.test = test
-        self.dl_args = dl_args
-
+        self.db_opts = db_opts
+        self.ds_opts = ds_opts
+        self.dl_opts = dl_opts
         self.stats = hp.read_smth_stats()
-        base_transform = pipe.TransformComposition([
-            pipe.Resize(80, 'inter_area'),
+
+        transform = pipe.TransformComposition([
+            pipe.Resize(db_opts.size, 'inter_area'),
             pipe.Normalize(255),
             pipe.Standardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
             pipe.FramePad(ct.IMAGE_NET_STD_HEIGHT, ct.IMAGE_NET_STD_WIDTH, False),
-            pipe.ToVolumeArray() if self.shape == 'volume' else pipe.ToStackedArray()
+            pipe.ToVolumeArray() if self.db_opts.shape == 'volume' else pipe.ToStackedArray()
         ])
-        self.train_set = pipe.SmthDataset(ct.SMTH_META_TRAIN, self.cut, transform=base_transform)
-        self.valid_set = pipe.SmthDataset(ct.SMTH_META_VALID, self.cut, transform=base_transform)
-        self.train_loader = thd.DataLoader(self.train_set, collate_fn=self.train_set.collate, **self.dl_args)
-        self.valid_loader = thd.DataLoader(self.valid_set, collate_fn=self.valid_set.collate, **self.dl_args)
-        if self.test:
-            self.test_set = pipe.SmthDataset(ct.SMTH_META_TEST, self.cut, transform=base_transform)
-            self.test_loader = thd.DataLoader(self.test_set, collate_fn=self.test_set.collate, **self.dl_args)
+        self.train_set = pipe.SmthDataset(ct.SMTH_META_TRAIN, transform=transform, **asdict(self.ds_opts))
+        self.valid_set = pipe.SmthDataset(ct.SMTH_META_VALID, transform=transform, **asdict(self.ds_opts))
+        self.train_loader = thd.DataLoader(self.train_set, collate_fn=self.train_set.collate, **asdict(self.dl_opts))
+        self.valid_loader = thd.DataLoader(self.valid_set, collate_fn=self.valid_set.collate, **asdict(self.dl_opts))
+        if self.db_opts.test:
+            self.test_set = pipe.SmthDataset(ct.SMTH_META_TEST, transform=transform, **asdict(self.ds_opts))
+            self.test_loader = thd.DataLoader(self.test_set, collate_fn=self.test_set.collate, **asdict(self.dl_opts))
         else:
             self.test_set = None
             self.test_loader = None
 
     def __str__(self):
         return (f"""Something-Something DataBunch. 
-            [cut: {self.cut}]
-            [shape: {self.shape}]
-            [data loader: {" ".join("{}={}".format(k, v) for k, v in self.dl_args.items())}]
+            [set config: {" ".join("{}={}".format(k, v) for k, v in asdict(self.ds_opts).items())}]
+            [loader config: {" ".join("{}={}".format(k, v) for k, v in asdict(self.dl_opts).items())}]
             [Train Set: {self.train_set}]
             [Valid Set: {self.valid_set}]
             [Test Set: {self.test_set}]""")
@@ -63,7 +59,10 @@ class SmthDataBunch(object):
 
 if __name__ == '__main__':
     os.chdir('/Users/Play/Code/AI/master-thesis/src')
-    bunch = SmthDataBunch(1.0, 'volume', 80, False, dict(batch_size=24, pin_memory=True, shuffle=True, num_workers=8))
+    _db_opts = pipe.DataBunchOptions('volume', 120, False)
+    _ds_opts = pipe.DataSetOptions(0.5, None, None)
+    _dl_opts = pipe.DataLoaderOptions(8, False, 0, False, False)
+    bunch = SmthDataBunch(_db_opts, _ds_opts, _dl_opts)
     print(bunch)
     for i, _ in tqdm(enumerate(bunch.train_loader)):
         continue

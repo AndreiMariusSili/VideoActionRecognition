@@ -40,7 +40,7 @@ class VideoLSTM(nn.Module):
         _, (lstm_out, _) = self.lstm(vgg_out)
         _out = self.classifier(lstm_out.view(bs, LSTM_OUT))
 
-        return _out, vgg_out
+        return _out
 
     def _vgg(self, _in: th.Tensor):
         """Forward pass of the VGG network for each frame in the input."""

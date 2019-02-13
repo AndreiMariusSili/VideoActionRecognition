@@ -16,7 +16,8 @@ class SmthDataset(thd.Dataset):
     meta: pd.DataFrame
     transform: pipe.TransformComposition
 
-    def __init__(self, meta: pl.Path, cut: float, transform: pipe.TransformComposition = None, split: str = None):
+    def __init__(self, meta: pl.Path, cut: float, transform: pipe.TransformComposition = None,
+                 split: str = None, keep: int = None):
         """Initialize a smth-smth dataset from the DataFrame containing meta information."""
         assert 0.0 <= cut <= 1.0, f'Cut should be between 0.0, and 1.0. Received: {cut}.'
         assert split in ['train', 'valid', None], f'Split can be one of: train, valid. Given: {split}.'
@@ -27,6 +28,9 @@ class SmthDataset(thd.Dataset):
         if split is not None and 'split' in self.meta.columns:
             self.meta = self.meta[self.meta['split'] == split]
         self.transform = transform
+
+        if keep is not None:
+            self.meta = self.meta.sample(n=keep)
         transforms = map(lambda t: type(t).__name__, self.transform.transforms) if self.transform is not None else []
         transforms = list(transforms)
         if 'ToVolumeArray' in transforms or 'ToStackedArray' in transforms:
