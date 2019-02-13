@@ -1,11 +1,16 @@
-from dataclasses import dataclass
+import dataclasses as dc
 
 
-@dataclass
+@dc.dataclass
 class CreateDummySetOptions:
     set: str
 
 
-@dataclass
+@dc.dataclass
 class PreproSetOptions:
     set: str
+
+
+@dc.dataclass
+class ModelRunOptions:
+    spec: str
