@@ -1,3 +1,5 @@
+import os
+
 from torch import optim, nn
 from ignite import metrics
 
@@ -7,30 +9,29 @@ import models
 
 data_bunch_opts = pipe.DataBunchOptions(
     shape='volume',
-    size=120,
+    size=224,
     test=False
 )
 data_set_opts = pipe.DataSetOptions(
-    cut=0.5,
-    keep=5
+    cut=0.25
 )
 data_loader_opts = pipe.DataLoaderOptions(
-    batch_size=1,
+    batch_size=128,
     shuffle=True,
-    num_workers=8,
+    num_workers=os.cpu_count(),
     pin_memory=True,
     drop_last=False
 )
 model_opts = models.VideoLSTMOptions(
     num_classes=10,
-    freeze_conv=True,
+    freeze_conv=False,
     freeze_fc=False
 )
 optimizer_opts = models.AdamOptimizerOptions(
     lr=0.01
 )
 trainer_opts = models.TrainerOptions(
-    epochs=1,
+    epochs=100,
     optimizer=optim.Adam,
     optimizer_opts=optimizer_opts,
     criterion=nn.CrossEntropyLoss
@@ -44,7 +45,7 @@ evaluator_opts = models.EvaluatorOptions(
 )
 
 video_lstm = models.RunOptions(
-    name='video_lstm',
+    name='video_lstm@dummy_smth_smth',
     resume=False,
     resume_from=None,
     log_interval=10,
