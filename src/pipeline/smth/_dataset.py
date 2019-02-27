@@ -87,11 +87,12 @@ class SmthDataset(thd.Dataset):
 if __name__ == '__main__':
     os.chdir('/Users/Play/Code/AI/master-thesis/src')
     base_transform = pipe.TransformComposition([
-        pipe.Resize(80, 'inter_area'),
-        pipe.Normalize(255),
-        pipe.Standardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
-        pipe.FramePad(ct.IMAGE_NET_STD_HEIGHT, ct.IMAGE_NET_STD_WIDTH, False),
+        pipe.VideoRandomCrop(224),
+        pipe.VideoColorJitter(brightness=2, contrast=2, saturation=2, hue=0.5),
+        pipe.VideoNormalize(255),
+        pipe.VideoStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
         pipe.ToVolumeArray()
     ])
     dataset = SmthDataset(ct.SMTH_META_TRAIN, 0.3, base_transform)
-    x, y = dataset[0]
+    for i in range(10):
+        x, y = dataset[i]
