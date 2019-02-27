@@ -45,14 +45,10 @@ class VideoLSTM(nn.Module):
     def _vgg(self, _in: th.Tensor):
         """Forward pass of the VGG network for each frame in the input."""
         bs, sl, c, h, w = _in.size()
-        vgg_out = th.empty((bs, sl, VGG_OUT), dtype=th.float32)
-        for i, x in enumerate(_in.split(1, dim=1)):
-            x = x.view(bs, c, h, w)
-            conv_out = self.conv(x)
-            fc_out = self.fc(conv_out.view(bs, FC_IN))
-            vgg_out[:, i, :] = fc_out
+        conv_out = self.conv(_in.view((bs * sl, c, h, w)))
+        fc_out = self.fc(conv_out.view(bs, sl, FC_IN))
 
-        return vgg_out
+        return fc_out
 
     def __init_vgg(self, vgg16: thv.models.VGG):
         """Initialize the VGG part of the network.
@@ -95,8 +91,10 @@ class VideoLSTM(nn.Module):
 
 if __name__ == '__main__':
     os.chdir('/Users/Play/Code/AI/master-thesis/src')
-    dl_args = dict(batch_size=2, pin_memory=True, shuffle=False, num_workers=0)
-    bunch = pipe.SmthDataBunch(0.3, 'volume', 80, False, dl_args)
+    data_bunch_opts = pipe.DataBunchOptions(shape='volume', size=224, test=False)
+    data_set_opts = pipe.DataSetOptions(cut=0.25)
+    data_loader_opts = pipe.DataLoaderOptions(batch_size=2, pin_memory=True, shuffle=False, num_workers=0)
+    bunch = pipe.SmthDataBunch(data_bunch_opts, data_set_opts, data_loader_opts)
     model = VideoLSTM(10, True, False)
     loss_fn = nn.CrossEntropyLoss()
     for _i, (_x, _y) in tqdm(enumerate(bunch.train_loader), total=10):
