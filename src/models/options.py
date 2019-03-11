@@ -1,4 +1,3 @@
-from collections import namedtuple
 from typing import Optional, Dict, Any, Union, Type, Tuple
 import dataclasses as dc
 from torch import optim
@@ -7,7 +6,7 @@ from torch import nn
 import pipeline as pipe
 
 __all__ = [
-    'TrainerOptions', 'EvaluatorOptions', 'VideoLSTMOptions',
+    'TrainerOptions', 'EvaluatorOptions', 'LRCNOptions',
     'OptimizerOptions', 'AdamOptimizerOptions',
     'RunOptions'
 ]
@@ -33,10 +32,9 @@ class CriterionOptions:
 
 
 @dc.dataclass
-class VideoLSTMOptions:
+class LRCNOptions:
     num_classes: int
-    freeze_conv: bool
-    freeze_fc: bool
+    freeze_feature_extractor: bool
 
 
 @dc.dataclass
@@ -59,8 +57,9 @@ class RunOptions:
     resume: bool
     resume_from: Optional[str]
     log_interval: int
+    patience: int
     model: Type[nn.Module]
-    model_opts: VideoLSTMOptions
+    model_opts: LRCNOptions
     data_bunch: Type[pipe.SmthDataBunch]
     data_bunch_opts: pipe.DataBunchOptions
     data_set_opts: pipe.DataSetOptions
