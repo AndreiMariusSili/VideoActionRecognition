@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple, List
 from torch.utils import data as thd
 from dataclasses import asdict
 from tqdm import tqdm
@@ -11,9 +11,9 @@ import helpers as hp
 
 
 class SmthDataBunch(object):
-    ds_opts: pipe.DataSetOptions
-    dl_opts: pipe.DataLoaderOptions
-    stats: pd.DataFrame
+    ds_opts: 'pipe.DataSetOptions'
+    dl_opts: 'pipe.DataLoaderOptions'
+    stats: 'pd.DataFrame'
 
     train_set: 'pipe.SmthDataset'
     train_loader: 'thd.DataLoader'
@@ -30,20 +30,18 @@ class SmthDataBunch(object):
         self.dl_opts = dl_opts
         self.stats = hp.read_smth_stats()
 
-        train_transform = pipe.TransformComposition([
-            pipe.VideoRandomCrop(db_opts.size),
-            pipe.VideoColorJitter(0.1, 0.1, 0.1, 0.1),
-            pipe.VideoNormalize(255),
-            pipe.VideoStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
-            pipe.FramePad(ct.IMAGE_NET_STD_HEIGHT, ct.IMAGE_NET_STD_WIDTH, False),
-            pipe.ToVolumeArray() if self.db_opts.shape == 'volume' else pipe.ToStackedArray()
+        train_transform = pipe.VideoCompose([
+            pipe.RandomCrop(db_opts.frame_size),
+            pipe.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05),
+            pipe.ToVolumeArray(3, True) if self.db_opts.shape == 'volume' else pipe.ClipToStackedArray(3),
+            pipe.ArrayNormalize(255),
+            pipe.ArrayStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
         ])
-        valid_transform = pipe.TransformComposition([
-            pipe.VideoCenterCrop(db_opts.size),
-            pipe.VideoNormalize(255),
-            pipe.VideoStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
-            pipe.FramePad(ct.IMAGE_NET_STD_HEIGHT, ct.IMAGE_NET_STD_WIDTH, False),
-            pipe.ToVolumeArray() if self.db_opts.shape == 'volume' else pipe.ToStackedArray()
+        valid_transform = pipe.VideoCompose([
+            pipe.CenterCrop(db_opts.frame_size),
+            pipe.ToVolumeArray() if self.db_opts.shape == 'volume' else pipe.ClipToStackedArray(3),
+            pipe.ArrayNormalize(255),
+            pipe.ArrayStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
         ])
 
         self.train_set = pipe.SmthDataset(ct.SMTH_META_TRAIN, transform=train_transform, **asdict(self.ds_opts))
@@ -57,9 +55,23 @@ class SmthDataBunch(object):
             self.test_set = None
             self.test_loader = None
 
+    def get_batch(self, n: int, spl: str)-> Tuple[List[pipe.Video], List[pipe.Label]]:
+        """Retrieve a random batch from one of the datasets."""
+        assert spl in ['train', 'valid', 'test'], f'Unknown split: {spl}.'
+
+        if spl == 'train':
+            batch = self.train_set.get_batch(n)
+        elif spl == 'valid':
+            batch = self.valid_set.get_batch(n)
+        else:
+            batch = self.test_set.get_batch(n)
+
+        return batch
+
     def __str__(self):
-        return (f"""Something-Something-v2 DataBunch. 
-            [set config: {" ".join("{}={}".format(k, v) for k, v in asdict(self.ds_opts).items())}]
+        return (f"""Something-Something-v2 DataBunch.
+            [databunch config: {" ".join("{}={}".format(k, v) for k, v in asdict(self.db_opts).items())}] 
+            [dataset config: {" ".join("{}={}".format(k, v) for k, v in asdict(self.ds_opts).items())}]
             [loader config: {" ".join("{}={}".format(k, v) for k, v in asdict(self.dl_opts).items())}]
             [Train Set: {self.train_set}]
             [Valid Set: {self.valid_set}]
@@ -68,10 +80,11 @@ class SmthDataBunch(object):
 
 if __name__ == '__main__':
     os.chdir('/Users/Play/Code/AI/master-thesis/src')
-    _db_opts = pipe.DataBunchOptions('volume', 120, False)
-    _ds_opts = pipe.DataSetOptions(0.5, None, None)
+    _db_opts = pipe.DataBunchOptions('volume', 224, False)
+    _ds_opts = pipe.DataSetOptions(1.0, 16)
     _dl_opts = pipe.DataLoaderOptions(8, False, 0, False, False)
     bunch = SmthDataBunch(_db_opts, _ds_opts, _dl_opts)
     print(bunch)
-    for i, _ in tqdm(enumerate(bunch.train_loader)):
-        continue
+    for i, _ in tqdm(enumerate(bunch.train_loader), total=len(bunch.train_loader)):
+        if i > 10:
+            break

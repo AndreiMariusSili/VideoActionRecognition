@@ -35,13 +35,13 @@ def create_dummy_labels(full_labels: pd.DataFrame, dummy_labels2id: pd.DataFrame
 
 def create_dummy_inputs(dummy_labels: pd.DataFrame) -> Tuple[str, str, int]:
     """Copy .webm files with an id in the dummy labels DataFrame to the dummy folder."""
-    os.makedirs(ct.SMTH_VIDEO_DIR, exist_ok=True)
+    os.makedirs(ct.SMTH_WEBM_DIR, exist_ok=True)
 
-    smth_full_raw_data = hp.change_setting(ct.SMTH_VIDEO_DIR, ct.SETTING, 'full')
+    smth_full_raw_data = hp.change_setting(ct.SMTH_WEBM_DIR, ct.SETTING, 'full')
     for _id in dummy_labels['id']:
-        shutil.copy(f'{os.path.join(smth_full_raw_data, _id)}.webm', f'{os.path.join(ct.SMTH_VIDEO_DIR, _id)}.webm')
+        shutil.copy(f'{os.path.join(smth_full_raw_data, _id)}.webm', f'{os.path.join(ct.SMTH_WEBM_DIR, _id)}.webm')
 
-    return smth_full_raw_data, ct.SMTH_VIDEO_DIR, len(dummy_labels)
+    return smth_full_raw_data, ct.SMTH_WEBM_DIR, len(dummy_labels)
 
 
 def main():

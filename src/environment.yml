@@ -4,14 +4,23 @@ channels:
   - conda-forge
   - pytorch
 dependencies:
-  - torch
+  - python=3.6
+  - tensorflow
+  - tensorflow-probability
+  - pytorch
   - torchvision
+  - ignite
+  - pandas
+  - opencv
+  - scikit-learn
+  - scikit-image
+  - scikit-video
+  - tqdm
   - matplotlib
   - bokeh
-  - scikit-image
-  - opencv
-  - scikit-video
   - jupyter
-  - ignite
-prefix: /Users/Play/miniconda3/envs/mt
-
+  - pip:
+      - dataclasses
+      - memory-profiler
+      - dm-sonnet
+      - autopep8
