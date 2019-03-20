@@ -7,6 +7,7 @@ dependencies:
   - python=3.6
   - tensorflow
   - tensorflow-probability
+  - tensorflow-probability-gpu
   - pytorch
   - torchvision
   - ignite

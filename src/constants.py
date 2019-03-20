@@ -34,6 +34,6 @@ I3D_TF_FLOW_CHECKPOINT = pl.Path(
     os.path.join(ROOT, 'src', 'models', 'i3d', 'checkpoints', 'tf_flow_checkpoint', 'model.ckpt'))
 I3D_PT_FLOW_CHECKPOINT = pl.Path(
     os.path.join(ROOT, 'src', 'models', 'i3d', 'checkpoints', 'pt_flow_checkpoint', 'model.ckpt'))
-I3D_PREPARE_DATASET = pl.Path(os.path.join(ROOT, 'data', 'i3d_prepare_dataset'))
+I3D_PREPARE_DATASET = pl.Path(os.path.join(ROOT, 'data', 'i3d'))
 
 STYLES = pl.Path(os.path.join(ROOT, 'src', 'assets', 'styles.css'))

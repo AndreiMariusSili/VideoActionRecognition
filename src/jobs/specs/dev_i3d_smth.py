@@ -1,9 +1,9 @@
-from torch import optim, nn
+from torch import optim, nn, cuda
 from ignite import metrics
 
 from models import options
 import pipeline as pipe
-from models import lrcn
+from models import i3d
 import constants as ct
 
 ########################################################################################################################
@@ -62,9 +62,8 @@ valid_data_loader_opts = pipe.DataLoaderOptions(
 ########################################################################################################################
 # MODEL AND AUXILIARIES
 ########################################################################################################################
-model_opts = options.LRCNOptions(
+model_opts = options.I3DOptions(
     num_classes=10,
-    freeze_feature_extractor=False
 )
 optimizer_opts = options.AdamOptimizerOptions(
     lr=0.01
@@ -85,13 +84,13 @@ evaluator_opts = options.EvaluatorOptions(
 ########################################################################################################################
 # RUN
 ########################################################################################################################
-dev_lrcn_smth = options.RunOptions(
-    name=f'dev@{ct.SETTING}@lrcn@smth',
+dev_i3d_smth = options.RunOptions(
+    name=f'dev@{ct.SETTING}@i3d@smth',
     resume=False,
     resume_from=None,
-    log_interval=10,
+    log_interval=1,
     patience=5,
-    model=lrcn.LRCN,
+    model=i3d.I3D,
     model_opts=model_opts,
     data_bunch=pipe.SmthDataBunch,
     data_bunch_opts=data_bunch_opts,

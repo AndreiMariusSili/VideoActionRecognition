@@ -17,6 +17,7 @@ def parse_options(opts: str) -> Dict[str, Any]:
 def main(args):
     """Parse arguments and start jobs."""
     job, opts = args.job, parse_options(args.opts)
+    opts['local_rank'] = args.local_rank
     if job == 'create_dummy_set':
         jobs.create_dummy_set(jobs.options.CreateDummySetOptions(**opts))
     elif job == 'prepro_set':
@@ -44,5 +45,6 @@ if __name__ == '__main__':
                         type=str,
                         help='Optional arguments to be passed to the job formatted as key1:value1,key2:value2',
                         default='')
+    parser.add_argument('--local_rank', type=int, default=-1)
     arguments = parser.parse_args()
     main(arguments)

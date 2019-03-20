@@ -1,10 +1,12 @@
 from torch import optim, nn
 from ignite import metrics
+import os
 
 from models import options
 import pipeline as pipe
 from models import lrcn
 import constants as ct
+
 
 ########################################################################################################################
 # DATA BUNCH OPTIONS
@@ -30,10 +32,10 @@ train_data_set_opts = pipe.DataSetOptions(
     so=train_so
 )
 train_data_loader_opts = pipe.DataLoaderOptions(
-    batch_size=2,
+    batch_size=8,
     shuffle=True,
-    num_workers=0,
-    pin_memory=False,
+    num_workers=os.cpu_count(),
+    pin_memory=True,
     drop_last=False
 )
 ########################################################################################################################
@@ -53,10 +55,10 @@ valid_data_set_opts = pipe.DataSetOptions(
     so=valid_so
 )
 valid_data_loader_opts = pipe.DataLoaderOptions(
-    batch_size=2,
+    batch_size=16,
     shuffle=False,
-    num_workers=0,
-    pin_memory=False,
+    num_workers=os.cpu_count(),
+    pin_memory=True,
     drop_last=False
 )
 ########################################################################################################################
@@ -67,7 +69,7 @@ model_opts = options.LRCNOptions(
     freeze_feature_extractor=False
 )
 optimizer_opts = options.AdamOptimizerOptions(
-    lr=0.01
+    lr=0.001
 )
 trainer_opts = options.TrainerOptions(
     epochs=100,
@@ -85,8 +87,8 @@ evaluator_opts = options.EvaluatorOptions(
 ########################################################################################################################
 # RUN
 ########################################################################################################################
-dev_lrcn_smth = options.RunOptions(
-    name=f'dev@{ct.SETTING}@lrcn@smth',
+lrcn_smth_100_e2e = options.RunOptions(
+    name=f'{ct.SETTING}_lrcn_smth_100_e2e',
     resume=False,
     resume_from=None,
     log_interval=10,

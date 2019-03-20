@@ -52,3 +52,4 @@
 
 data
 src/models/i3d/checkpoints
+**/__pycache__/**
