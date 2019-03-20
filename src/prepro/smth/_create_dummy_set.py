@@ -10,24 +10,26 @@ import helpers as hp
 
 
 def create_dummy_labels(full_labels: pd.DataFrame, dummy_labels2id: pd.DataFrame,
-                        dummy_split: str, split_name: str) -> pd.DataFrame:
+                        dummy_split: str, split_name: str, sample: bool) -> pd.DataFrame:
     """Create the dummy labels DataFrame by matching with the dummy labels2id templates and sampling from ."""
     mask = full_labels['template'].isin(dummy_labels2id['template'])
     dummy_labels = full_labels[mask].reset_index(drop=True)
 
-    samples = []
-    for template in dummy_labels2id['template']:
-        if split_name == 'train':
-            n = random.randint(*ct.SMTH_TRAIN_DUMMY_SAMPLE)
-        elif split_name == 'valid':
-            n = random.randint(*ct.SMTH_VALID_DUMMY_SAMPLE)
-        else:
-            raise ValueError(f'Unknown split: {split_name}')
+    if sample:
+        samples = []
+        for template in dummy_labels2id['template']:
+            if split_name == 'train':
+                n = random.randint(*ct.SMTH_TRAIN_DUMMY_SAMPLE)
+            elif split_name == 'valid':
+                n = random.randint(*ct.SMTH_VALID_DUMMY_SAMPLE)
+            else:
+                raise ValueError(f'Unknown split: {split_name}')
 
-        sample = dummy_labels[dummy_labels['template'] == template].sample(n=n, random_state=1).index
-        samples.extend(sample)
+            sample = dummy_labels[dummy_labels['template'] == template].sample(n=n, random_state=1).index
 
-    dummy_labels = dummy_labels.loc[samples]
+            samples.extend(sample)
+        dummy_labels = dummy_labels.loc[samples]
+
     dummy_labels.to_json(dummy_split, orient='records')
 
     return dummy_labels
@@ -44,7 +46,7 @@ def create_dummy_inputs(dummy_labels: pd.DataFrame) -> Tuple[str, str, int]:
     return smth_full_raw_data, ct.SMTH_WEBM_DIR, len(dummy_labels)
 
 
-def main():
+def main(sample: bool):
     """Create dummy sets for the something-something dataset based on hand-picked labels."""
     logging.info('Creating something-something dummy dataset...')
     # load dummy labels
@@ -61,7 +63,7 @@ def main():
         full_labels = hp.read_smth_meta(full_split)
         logging.info(f'Loaded full labels DataFrame from {full_split}.')
         # create dummy label files
-        dummy_labels = create_dummy_labels(full_labels, dummy_labels2id, dummy_split, split_name)
+        dummy_labels = create_dummy_labels(full_labels, dummy_labels2id, dummy_split, split_name, sample)
         logging.info(f'Created dummy labels DataFrame with {len(dummy_labels)} entries.')
         # copy matching inputs to dummy location
         _from, _to, total = create_dummy_inputs(dummy_labels)

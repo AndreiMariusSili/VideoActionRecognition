@@ -11,7 +11,7 @@ def create_dummy_set(opts: options.CreateDummySetOptions) -> None:
     """Create a dummy subset of the full dataset specified in opts."""
     if opts.set == 'smth':
         import prepro.smth
-        prepro.smth.create_dummy_set()
+        prepro.smth.create_dummy_set(opts.sample)
     else:
         raise ValueError(f'Unknown options: {opts}')
 
