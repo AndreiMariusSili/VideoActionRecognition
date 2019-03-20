@@ -63,7 +63,6 @@ class EvaluatorOptions:
 class RunOptions:
     name: str
     resume: bool
-    resume_from: Optional[str]
     log_interval: int
     patience: int
     model: Type[nn.Module]

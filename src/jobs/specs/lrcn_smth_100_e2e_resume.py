@@ -1,10 +1,12 @@
 from torch import optim, nn
 from ignite import metrics
+import os
 
 from models import options
 import pipeline as pipe
 from models import lrcn
 import constants as ct
+
 
 ########################################################################################################################
 # DATA BUNCH OPTIONS
@@ -20,7 +22,6 @@ train_do = pipe.DataOptions(
     meta_path=ct.SMTH_META_TRAIN,
     cut=1.0,
     setting='train',
-    keep=4
 )
 train_so = pipe.SamplingOptions(
     num_segments=4,
@@ -31,10 +32,10 @@ train_data_set_opts = pipe.DataSetOptions(
     so=train_so
 )
 train_data_loader_opts = pipe.DataLoaderOptions(
-    batch_size=2,
+    batch_size=8,
     shuffle=True,
-    num_workers=0,
-    pin_memory=False,
+    num_workers=os.cpu_count(),
+    pin_memory=True,
     drop_last=False
 )
 ########################################################################################################################
@@ -44,7 +45,6 @@ valid_do = pipe.DataOptions(
     meta_path=ct.SMTH_META_VALID,
     cut=1.0,
     setting='valid',
-    keep=1
 )
 valid_so = pipe.SamplingOptions(
     num_segments=4,
@@ -55,10 +55,10 @@ valid_data_set_opts = pipe.DataSetOptions(
     so=valid_so
 )
 valid_data_loader_opts = pipe.DataLoaderOptions(
-    batch_size=2,
+    batch_size=16,
     shuffle=False,
-    num_workers=0,
-    pin_memory=False,
+    num_workers=os.cpu_count(),
+    pin_memory=True,
     drop_last=False
 )
 ########################################################################################################################
@@ -66,10 +66,10 @@ valid_data_loader_opts = pipe.DataLoaderOptions(
 ########################################################################################################################
 model_opts = options.LRCNOptions(
     num_classes=10,
-    freeze_feature_extractor=True
+    freeze_feature_extractor=False
 )
 optimizer_opts = options.AdamOptimizerOptions(
-    lr=0.01
+    lr=0.001
 )
 trainer_opts = options.TrainerOptions(
     epochs=100,
@@ -87,10 +87,10 @@ evaluator_opts = options.EvaluatorOptions(
 ########################################################################################################################
 # RUN
 ########################################################################################################################
-dev_lrcn_smth = options.RunOptions(
-    name=f'dev_{ct.SETTING}_lrcn_smth',
+lrcn_smth_100_e2e_resume = options.RunOptions(
+    name=f'{ct.SETTING}_lrcn_smth_100_e2e',
     resume=True,
-    log_interval=1,
+    log_interval=10,
     patience=5,
     model=lrcn.LRCN,
     model_opts=model_opts,

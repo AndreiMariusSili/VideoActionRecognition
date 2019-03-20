@@ -89,7 +89,6 @@ evaluator_opts = options.EvaluatorOptions(
 lrcn_smth_100_classifier = options.RunOptions(
     name=f'{ct.SETTING}_lrcn_smth_100_classifier',
     resume=False,
-    resume_from=None,
     log_interval=10,
     patience=5,
     model=lrcn.LRCN,

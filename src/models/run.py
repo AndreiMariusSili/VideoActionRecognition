@@ -1,4 +1,5 @@
-from typing import Any, Optional, Union, Dict, Type, Tuple
+from glob import glob
+from typing import Any, Union, Dict, Type, Tuple
 from torch import nn, cuda, distributed
 from ignite import engine, handlers
 import dataclasses as dc
@@ -30,7 +31,6 @@ class Run(object):
     optimizer: Union[th.optim.Adam, th.optim.SGD, th.optim.RMSprop]
     model: nn.Module
     epochs: int
-    resume_from: Optional[str]
     resume: bool
     name: str
     run_dir: pl.Path
@@ -45,13 +45,12 @@ class Run(object):
 
         self.name = opts.name
         self.resume = opts.resume
-        self.resume_from = opts.resume_from
         self.epochs = opts.trainer_opts.epochs
         self.patience = opts.patience
         self.log_interval = opts.log_interval
 
         self.metrics = opts.evaluator_opts.metrics
-        self.device = th.device(f'cuda:{self.rank}' if th.cuda.is_available() else f'cpu:{self.rank}')
+        self.device = th.device(f'cuda:{self.rank}' if th.cuda.is_available() else f'cpu')
         self.model = self.__init_model(opts.model, opts.model_opts)
         self.logger.info(self.model)
         self.optimizer = self.__init_optimizer(opts.trainer_opts.optimizer, opts.trainer_opts.optimizer_opts)
@@ -107,8 +106,9 @@ class Run(object):
         model = model(**dc.asdict(opts))
         model = model.to(self.device)
         if self.resume:
-            self.logger.info(f'Loading model from {self.resume_from}.')
-            model.load_state_dict(th.load(self.resume_from)['model'])
+            model_path = glob((self.run_dir / 'run_model_*').as_posix()).pop()
+            self.logger.info(f'Loading model from {model_path}.')
+            model.load_state_dict(th.load(model_path, map_location=self.device))
         if distributed.is_available():
             if cuda.is_available():
                 model = nn.parallel.DistributedDataParallel(model, device_ids=[self.rank], output_device=self.rank)
@@ -120,23 +120,16 @@ class Run(object):
     def __init_optimizer(self, optimizer: Type[th.optim.Optimizer], optimizer_opts: Any) -> th.optim.Optimizer:
         _optimizer = optimizer(self.model.parameters(), **dc.asdict(optimizer_opts))
         if self.resume:
-            self.logger.info(f'Loading optimizer from {self.resume_from}.')
-            _optimizer.load_state_dict(th.load(self.resume_from)['optimizer'])
+            optimizer_path = glob((self.run_dir / 'run_optimizer_*').as_posix()).pop()
+            self.logger.info(f'Loading optimizer from {optimizer_path}.')
+            _optimizer.load_state_dict(th.load(optimizer_path, map_location=self.device))
 
         return _optimizer
 
     def __init_trainer_evaluator(self) -> Tuple[engine.Engine, engine.Engine, engine.Engine]:
         trainer = engine.create_supervised_trainer(self.model, self.optimizer, self.criterion, self.device, True)
-        if self.resume:
-            trainer.state = th.load(self.resume_from)['trainer_state']
-
         train_evaluator = engine.create_supervised_evaluator(self.model, self.metrics, self.device, True)
-        if self.resume:
-            train_evaluator.state = th.load(self.resume_from)['train_evaluator_state']
-
         valid_evaluator = engine.create_supervised_evaluator(self.model, self.metrics, self.device, True)
-        if self.resume:
-            valid_evaluator.state = th.load(self.resume_from)['valid_evaluator_state']
 
         return trainer, train_evaluator, valid_evaluator
 
@@ -148,6 +141,7 @@ class Run(object):
         self.__init_iter_timer_handler()
         self.__init_early_stopping_handler()
 
+        self.trainer.add_event_handler(engine.Events.STARTED, self._on_training_started)
         self.trainer.add_event_handler(engine.Events.EPOCH_STARTED, self._on_epoch_started)
         self.trainer.add_event_handler(engine.Events.ITERATION_COMPLETED, self._on_iteration_completed)
         self.trainer.add_event_handler(engine.Events.EPOCH_COMPLETED, self._on_epoch_completed)
@@ -162,16 +156,13 @@ class Run(object):
                                step=engine.Events.ITERATION_COMPLETED)
 
     def __init_checkpoint_handler(self) -> None:
-
+        require_empty = not self.resume
         checkpoint_handler = handlers.ModelCheckpoint(dirname=self.run_dir.as_posix(), filename_prefix='run',
-                                                      n_saved=1, save_as_state_dict=False,
+                                                      n_saved=1, require_empty=require_empty, save_as_state_dict=True,
                                                       score_function=self.acc_3, score_name='acc@3')
         checkpoint_args = {
-            'model': self.model.module.state_dict() if hasattr(self.model, 'module') else self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-            'trainer_state': self.trainer.state,
-            'train_evaluator_state': self.train_evaluator.state,
-            'valid_evaluator_state': self.valid_evaluator.state
+            'model': self.model.module if hasattr(self.model, 'module') else self.model,
+            'optimizer': self.optimizer,
         }
         self.valid_evaluator.add_event_handler(engine.Events.COMPLETED, checkpoint_handler, checkpoint_args)
 
@@ -181,10 +172,18 @@ class Run(object):
 
     def __init_stats_recorder(self) -> None:
         fieldnames = ['train_loss', 'valid_loss', 'train_acc@1', 'valid_acc@1', 'train_acc@3', 'valid_acc@3']
-        self.csv_file = open((self.run_dir / 'stats.csv').as_posix(), 'w')
+        self.csv_file = open((self.run_dir / 'stats.csv').as_posix(), 'a+')
         self.csv_writer = csv.DictWriter(self.csv_file, fieldnames)
         if not self.resume:
             self.csv_writer.writeheader()
+
+    def _on_training_started(self, _engine: engine.Engine) -> None:
+        if self.resume:
+            self.logger.info(f'Loading trainer state from {(self.run_dir / "trainer_state.json").as_posix()}')
+            with open((self.run_dir / 'trainer_state.json').as_posix(), 'r') as file:
+                state = json.load(file)
+                _engine.state.iteration = state['iteration']
+                _engine.state.epoch = state['epoch']
 
     def _on_epoch_started(self, _engine: engine.Engine) -> None:
         self.logger.info('TRAINING.')
@@ -219,9 +218,15 @@ class Run(object):
                f'[Loss: {metrics["valid_loss"]:.4f}]')
         self.logger.info(msg)
 
-        # only write stats to file if on main process.
+        # only write stats and state to file if on main process.
         if self.rank == 0:
             self.csv_writer.writerow(metrics)
+            with open((self.run_dir / 'trainer_state.json').as_posix(), 'w') as file:
+                state = {
+                    'iteration': _engine.state.iteration,
+                    'epoch': _engine.state.epoch,
+                }
+                json.dump(state, file, indent=True)
 
     def _on_exception_raised(self, _engine: engine.Engine, exception: Exception) -> None:
         if self.rank == 0:

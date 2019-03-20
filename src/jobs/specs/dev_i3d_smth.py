@@ -85,9 +85,8 @@ evaluator_opts = options.EvaluatorOptions(
 # RUN
 ########################################################################################################################
 dev_i3d_smth = options.RunOptions(
-    name=f'dev@{ct.SETTING}@i3d@smth',
+    name=f'dev_{ct.SETTING}_i3d_smth',
     resume=False,
-    resume_from=None,
     log_interval=1,
     patience=5,
     model=i3d.I3D,

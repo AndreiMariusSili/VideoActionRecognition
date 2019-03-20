@@ -88,7 +88,6 @@ evaluator_opts = options.EvaluatorOptions(
 i3d_smth_100_e2e = options.RunOptions(
     name=f'{ct.SETTING}_i3d_smth_100_e2e',
     resume=False,
-    resume_from=None,
     log_interval=10,
     patience=5,
     model=i3d.I3D,
