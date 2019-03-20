@@ -161,15 +161,19 @@ class I3D(nn.Module):
 
         self.avg_pool = nn.AvgPool3d((2, 7, 7), (1, 1, 1))
         self.dropout = nn.Dropout(dropout_prob)
-        self.conv3d_0c_1x1 = Unit3D(in_channels=1024, out_channels=self.num_classes, kernel_size=(1, 1, 1),
+        self.conv3d_0c_1x1 = Unit3D(in_channels=1024, out_channels=400, kernel_size=(1, 1, 1),
                                     activation='none', use_bias=True, use_bn=False)
         self.softmax = nn.Softmax(dim=1)
 
-        if ct.I3D_PT_RGB_CHECKPOINT.exists():
+        if ct.I3D_PT_RGB_CHECKPOINT.exists() and self.modality == 'rgb':
             logging.info(f'Loading model from {ct.I3D_PT_RGB_CHECKPOINT}')
             self.load_state_dict(th.load(ct.I3D_PT_RGB_CHECKPOINT))
 
-    def forward(self, _in: th.Tensor) -> Tuple[th.tensor, th.tensor]:
+        self.conv3d_0c_1x1 = Unit3D(in_channels=1024, out_channels=self.num_classes, kernel_size=(1, 1, 1),
+                                    activation='none', use_bias=True, use_bn=False)
+
+    def forward(self, _in: th.Tensor) -> th.tensor:
+        _in = _in.transpose(1, 2)
         out = self.conv3d_1a_7x7(_in)
         out = self.maxPool3d_2a_3x3(out)
         out = self.conv3d_2b_1x1(out)
@@ -193,9 +197,8 @@ class I3D(nn.Module):
         out = out.squeeze(3)
         out = out.mean(2)
         out_logits = out
-        out = self.softmax(out_logits)
 
-        return out, out_logits
+        return out_logits
 
     def load_tf_weights(self, sess: Any) -> None:
         if self.modality not in ['rgb', 'flow']:

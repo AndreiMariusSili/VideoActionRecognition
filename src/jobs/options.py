@@ -4,38 +4,44 @@ import dataclasses as dc
 @dc.dataclass
 class CreateDummySetOptions:
     set: str
+    local_rank: int
+    sample: bool = False
 
 
 @dc.dataclass
 class PreproSetOptions:
     set: str
+    local_rank: int
 
 
 @dc.dataclass()
 class ModelPrepareOptions:
     model: str
+    local_rank: int
 
 
 @dc.dataclass
 class ModelRunOptions:
     spec: str
+    local_rank: int
 
 
 @dc.dataclass
 class ModelVisualiseOptions:
     page: str
-    run_dir: str
     spec: str
+    local_rank: int
 
 
 @dc.dataclass
 class ModelEvaluateOptions:
-    run_dir: str
     spec: str
+    local_rank: int
 
 
 @dc.dataclass
-class I3DPrepareOptions(ModelPrepareOptions):
+class I3DPrepareOptions:
     rgb: bool
     flow: bool
-    batch_size: int = 2
+    batch_size: int
+    local_rank: int

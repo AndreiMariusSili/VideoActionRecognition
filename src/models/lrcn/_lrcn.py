@@ -6,6 +6,7 @@ import torch as th
 import os
 
 import pipeline as pipe
+import constants as ct
 
 VGG_IN = 224
 CONV_OUT_C, CONV_OUT_H, CONV_OUT_W = 512, 7, 7
@@ -81,10 +82,41 @@ class LRCN(nn.Module):
 
 
 def main():
-    data_bunch_opts = pipe.DataBunchOptions(shape='volume', frame_size=224, test=False)
-    data_set_opts = pipe.DataSetOptions(cut=1.00, sample_size=16, keep=5)
-    data_loader_opts = pipe.DataLoaderOptions(batch_size=5, pin_memory=True, shuffle=False, num_workers=os.cpu_count())
-    bunch = pipe.SmthDataBunch(data_bunch_opts, data_set_opts, data_loader_opts)
+    db_opts = pipe.DataBunchOptions(shape='volume', frame_size=224)
+    _train_do = pipe.DataOptions(
+        meta_path=ct.SMTH_META_TRAIN,
+        cut=1.0,
+        setting='train',
+        transform=None,
+        keep=None
+    )
+    _train_so = pipe.SamplingOptions(
+        num_segments=4,
+        segment_size=4
+    )
+    _valid_do = pipe.DataOptions(
+        meta_path=ct.SMTH_META_VALID,
+        cut=1.0,
+        setting='valid',
+        transform=None,
+        keep=None
+    )
+    _valid_so = pipe.SamplingOptions(
+        num_segments=4,
+        segment_size=4
+    )
+    _train_ds_opts = pipe.DataSetOptions(
+        do=_train_do,
+        so=_train_so
+    )
+    _valid_ds_opts = pipe.DataSetOptions(
+        do=_valid_do,
+        so=_valid_so
+    )
+    train_ds = pipe.DataSetOptions(_train_do, _train_so)
+    valid_ds = pipe.DataSetOptions(_valid_do, _valid_so)
+    dl = pipe.DataLoaderOptions(batch_size=5, pin_memory=True, shuffle=False, num_workers=os.cpu_count())
+    bunch = pipe.SmthDataBunch(db_opts, train_ds, valid_ds, dl, dl)
     device = th.device('cuda' if th.cuda.is_available() else 'cpu')
     model = LRCN(10, False).to(device=device)
     loss_fn = nn.CrossEntropyLoss()

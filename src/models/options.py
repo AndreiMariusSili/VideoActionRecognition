@@ -38,6 +38,14 @@ class LRCNOptions:
 
 
 @dc.dataclass
+class I3DOptions:
+    num_classes: int
+    modality: str = 'rgb'
+    dropout_prob: float = 0.0
+    name: str = 'inception'
+
+
+@dc.dataclass
 class TrainerOptions:
     epochs: int
     optimizer: Union[Type[optim.SGD], Type[optim.Adam], Type[optim.RMSprop]]
@@ -59,10 +67,12 @@ class RunOptions:
     log_interval: int
     patience: int
     model: Type[nn.Module]
-    model_opts: LRCNOptions
+    model_opts: Union[LRCNOptions, I3DOptions]
     data_bunch: Type[pipe.SmthDataBunch]
     data_bunch_opts: pipe.DataBunchOptions
-    data_set_opts: pipe.DataSetOptions
-    data_loader_opts: pipe.DataLoaderOptions
+    train_data_set_opts: pipe.DataSetOptions
+    valid_data_set_opts: pipe.DataSetOptions
+    train_data_loader_opts: pipe.DataLoaderOptions
+    valid_data_loader_opts: pipe.DataLoaderOptions
     trainer_opts: TrainerOptions
     evaluator_opts: EvaluatorOptions

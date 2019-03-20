@@ -1,7 +1,6 @@
 from typing import Any, Optional, Union, Dict, Type, Tuple
+from torch import nn, cuda, distributed
 from ignite import engine, handlers
-from torch import nn, cuda, optim
-from datetime import datetime
 import dataclasses as dc
 import pathlib as pl
 import torch as th
@@ -10,13 +9,15 @@ import json
 import csv
 import os
 
+import models.options as mo
 from env import logging
 import pipeline as pipe
 import constants as ct
-import models.options as mo
 
 
 class Run(object):
+    distributed: bool
+    rank: int
     iterations: Union[float, int]
     log_interval: int
     train_evaluator: engine.Engine
@@ -26,7 +27,7 @@ class Run(object):
     metrics: Dict[str, Any]
     data_bunch: pipe.SmthDataBunch
     criterion: nn.CrossEntropyLoss
-    optimizer: Union[optim.Adam, optim.SGD, optim.RMSprop]
+    optimizer: Union[th.optim.Adam, th.optim.SGD, th.optim.RMSprop]
     model: nn.Module
     epochs: int
     resume_from: Optional[str]
@@ -37,6 +38,7 @@ class Run(object):
     logger: logging.Logger
 
     def __init__(self, opts: mo.RunOptions):
+        self.__init_distributed()
         self.__init_record(opts)
         self.logger = self.__init_logging()
         self.logger.info(f'Initializing run {opts.name}.')
@@ -46,50 +48,76 @@ class Run(object):
         self.resume_from = opts.resume_from
         self.epochs = opts.trainer_opts.epochs
         self.patience = opts.patience
+        self.log_interval = opts.log_interval
 
         self.metrics = opts.evaluator_opts.metrics
-        self.device = th.device('cuda' if th.cuda.is_available() else 'cpu')
-
+        self.device = th.device(f'cuda:{self.rank}' if th.cuda.is_available() else f'cpu:{self.rank}')
         self.model = self.__init_model(opts.model, opts.model_opts)
         self.logger.info(self.model)
         self.optimizer = self.__init_optimizer(opts.trainer_opts.optimizer, opts.trainer_opts.optimizer_opts)
         self.logger.info(self.optimizer)
         self.criterion = opts.trainer_opts.criterion(**dc.asdict(opts.trainer_opts.criterion_opts)).to(self.device)
         self.logger.info(self.criterion)
-        self.data_bunch = opts.data_bunch(opts.data_bunch_opts, opts.data_set_opts, opts.data_loader_opts)
+        opts.data_bunch_opts.distributed = distributed.is_available()
+        self.data_bunch = opts.data_bunch(opts.data_bunch_opts,
+                                          opts.train_data_set_opts,
+                                          opts.valid_data_set_opts,
+                                          opts.train_data_loader_opts,
+                                          opts.valid_data_loader_opts)
         self.logger.info(self.data_bunch)
 
         self.trainer, self.train_evaluator, self.valid_evaluator = self.__init_trainer_evaluator()
 
-        self.log_interval = opts.log_interval
-        self.iterations = math.ceil(len(self.data_bunch.train_set) / self.data_bunch.dl_opts.batch_size) * self.epochs
+        train_examples = len(self.data_bunch.train_set)
+        batch_size = self.data_bunch.train_dl_opts.batch_size
+        self.iterations = math.ceil(train_examples / batch_size) * self.epochs
 
         self.__init_handlers()
-        self.__init_stats_recorder()
+
+    def __init_distributed(self):
+        if distributed.is_available():
+            if cuda.is_available():
+                distributed.init_process_group(backend='nccl', init_method='env://')
+            else:
+                distributed.init_process_group(backend='gloo', init_method='env://')
+            self.rank = distributed.get_rank()
+        else:
+            self.rank = 0
 
     def __init_record(self, opts: mo.RunOptions):
-        self.run_dir = ct.RUN_DIR / f'{datetime.now().strftime("%Y-%m-%d@%H-%M-%S")}@{opts.name}'
+        self.run_dir = ct.RUN_DIR / opts.name
         os.makedirs(self.run_dir.as_posix(), exist_ok=True)
-        with open((self.run_dir / 'run.json').as_posix(), 'w') as file:
+        with open((self.run_dir / 'options.json').as_posix(), 'w') as file:
             json.dump(dc.asdict(opts), file, indent=True, sort_keys=True, default=str)
 
     def __init_logging(self, ):
+        """Get a logger that outputs to console and file. Only log messages if on the main process."""
         logger = logging.getLogger()
-        formatter = logging.Formatter('[%(asctime)-s][%(process)d][%(levelname)s]\t%(message)s')
-        file_handler = logging.FileHandler(self.run_dir / 'run.log', encoding='utf-8')
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
+        if self.rank == 0:
+            formatter = logging.Formatter('[%(asctime)-s][%(process)d][%(levelname)s]\t%(message)s')
+            file_handler = logging.FileHandler(self.run_dir / f'training.log', encoding='utf-8')
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+        else:
+            logger.handlers = []
+
         return logger
 
     def __init_model(self, model: nn.Module, opts: Any) -> nn.Module:
         model = model(**dc.asdict(opts))
+        model = model.to(self.device)
         if self.resume:
             self.logger.info(f'Loading model from {self.resume_from}.')
             model.load_state_dict(th.load(self.resume_from)['model'])
+        if distributed.is_available():
+            if cuda.is_available():
+                model = nn.parallel.DistributedDataParallel(model, device_ids=[self.rank], output_device=self.rank)
+            else:
+                model = nn.parallel.DistributedDataParallelCPU(model)
 
-        return model.to(device=self.device)
+        return model
 
-    def __init_optimizer(self, optimizer: Type[optim.Optimizer], optimizer_opts: Any) -> optim.Optimizer:
+    def __init_optimizer(self, optimizer: Type[th.optim.Optimizer], optimizer_opts: Any) -> th.optim.Optimizer:
         _optimizer = optimizer(self.model.parameters(), **dc.asdict(optimizer_opts))
         if self.resume:
             self.logger.info(f'Loading optimizer from {self.resume_from}.')
@@ -113,14 +141,19 @@ class Run(object):
         return trainer, train_evaluator, valid_evaluator
 
     def __init_handlers(self) -> None:
+        # all file handling is done only in the main process.
+        if self.rank == 0:
+            self.__init_checkpoint_handler()
+            self.__init_stats_recorder()
         self.__init_iter_timer_handler()
-        self.__init_checkpoint_handler()
         self.__init_early_stopping_handler()
+
         self.trainer.add_event_handler(engine.Events.EPOCH_STARTED, self._on_epoch_started)
         self.trainer.add_event_handler(engine.Events.ITERATION_COMPLETED, self._on_iteration_completed)
         self.trainer.add_event_handler(engine.Events.EPOCH_COMPLETED, self._on_epoch_completed)
         self.trainer.add_event_handler(engine.Events.EXCEPTION_RAISED, self._on_exception_raised)
         self.train_evaluator.add_event_handler(engine.Events.EXCEPTION_RAISED, self._on_exception_raised)
+        self.valid_evaluator.add_event_handler(engine.Events.EXCEPTION_RAISED, self._on_exception_raised)
 
     def __init_iter_timer_handler(self) -> None:
         self.iter_timer = handlers.Timer(average=False)
@@ -129,11 +162,12 @@ class Run(object):
                                step=engine.Events.ITERATION_COMPLETED)
 
     def __init_checkpoint_handler(self) -> None:
-        checkpoint_handler = handlers.ModelCheckpoint(dirname=self.run_dir.as_posix(), filename_prefix='', n_saved=5,
-                                                      score_function=self.val_loss, score_name='val_loss',
-                                                      save_as_state_dict=False)
+
+        checkpoint_handler = handlers.ModelCheckpoint(dirname=self.run_dir.as_posix(), filename_prefix='run',
+                                                      n_saved=1, save_as_state_dict=False,
+                                                      score_function=self.acc_3, score_name='acc@3')
         checkpoint_args = {
-            'model': self.model.state_dict(),
+            'model': self.model.module.state_dict() if hasattr(self.model, 'module') else self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
             'trainer_state': self.trainer.state,
             'train_evaluator_state': self.train_evaluator.state,
@@ -142,7 +176,7 @@ class Run(object):
         self.valid_evaluator.add_event_handler(engine.Events.COMPLETED, checkpoint_handler, checkpoint_args)
 
     def __init_early_stopping_handler(self) -> None:
-        handler = handlers.EarlyStopping(patience=self.patience, score_function=self.val_loss, trainer=self.trainer)
+        handler = handlers.EarlyStopping(patience=self.patience, score_function=self.acc_3, trainer=self.trainer)
         self.valid_evaluator.add_event_handler(engine.Events.COMPLETED, handler)
 
     def __init_stats_recorder(self) -> None:
@@ -154,6 +188,8 @@ class Run(object):
 
     def _on_epoch_started(self, _engine: engine.Engine) -> None:
         self.logger.info('TRAINING.')
+        if self.data_bunch.train_sampler is not None:
+            self.data_bunch.train_sampler.set_epoch(_engine.state.epoch)
 
     def _on_iteration_completed(self, _engine: engine.Engine) -> None:
         iteration = (_engine.state.iteration - 1) % len(self.data_bunch.train_set) + 1
@@ -183,16 +219,23 @@ class Run(object):
                f'[Loss: {metrics["valid_loss"]:.4f}]')
         self.logger.info(msg)
 
-        self.csv_writer.writerow(metrics)
+        # only write stats to file if on main process.
+        if self.rank == 0:
+            self.csv_writer.writerow(metrics)
 
     def _on_exception_raised(self, _engine: engine.Engine, exception: Exception) -> None:
-        self.csv_file.close()
+        if self.rank == 0:
+            self.csv_file.close()
 
         raise exception
 
     def val_loss(self, _engine: engine.Engine) -> float:
         return -round(_engine.state.metrics['loss'], 4)
 
+    def acc_3(self, _engine: engine.Engine) -> float:
+        return round(_engine.state.metrics['acc@3'], 4)
+
     def run(self) -> None:
         self.trainer.run(self.data_bunch.train_loader, max_epochs=self.epochs)
-        self.csv_file.close()
+        if self.rank == 0:
+            self.csv_file.close()

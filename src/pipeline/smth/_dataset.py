@@ -1,62 +1,55 @@
 from torch.utils import data as thd
 from typing import List, Tuple, Union
-from PIL import Image
-import pathlib as pl
-import pandas as pd
 import numpy as np
+import torch as th
 import os
 
 import pipeline as pipe
 import constants as ct
 import helpers as hp
 
-LOADED_ITEM = Union[Tuple[pipe.Video, pipe.Label], Tuple[List[Image.Image], int]]
+LOADED_ITEM = Tuple[pipe.Video, pipe.Label]
+COLLATED_ITEMS = Union[Tuple[th.Tensor, th.Tensor], Tuple[th.Tensor, th.Tensor, pipe.Video, pipe.Label]]
 
 
 class SmthDataset(thd.Dataset):
     presenting: bool
-    cut: float
-    sample_size: int
-    keep: int
-    meta: pd.DataFrame
+    evaluating: bool
+    do: pipe.DataOptions
+    so: pipe.SamplingOptions
     transform: pipe.VideoCompose
 
-    def __init__(self, meta: pl.Path, cut: float, sample_size: int,
-                 transform: pipe.VideoCompose = None, split: str = None, keep: int = None):
+    def __init__(self, data_opts: pipe.DataOptions, sampling_opts: pipe.SamplingOptions):
         """Initialize a smth-smth dataset from the DataFrame containing meta information."""
-        assert 0.0 <= cut <= 1.0, f'Cut should be between 0.0, and 1.0. Received: {cut}.'
-        assert split in ['train', 'valid', None], f'Split can be one of: train, valid. Given: {split}.'
-        self.presenting = False
-        self.cut = cut
-        self.sample_size = sample_size
-        self.keep = keep
+        assert 0.0 <= data_opts.cut <= 1.0, f'Cut should be between 0.0, and 1.0. Received: {data_opts.cut}.'
+        assert data_opts.setting in ['train', 'valid'], f'Unknown setting: {data_opts.setting}.'
 
-        self.meta = hp.read_smth_meta(meta)
+        self.presenting = False
+        self.evaluating = False
+
+        self.do = data_opts
+        self.so = sampling_opts
+
+        self.meta = hp.read_smth_meta(data_opts.meta_path)
         self.labels2id = hp.read_smth_labels2id(ct.SMTH_LABELS2ID)
 
-        if split is not None and 'split' in self.meta.columns:
-            self.meta = self.meta[self.meta['split'] == split]
-        if sample_size is not None:
-            self.meta = self.meta[self.meta['length'] >= sample_size]
-        if keep is not None:
-            self.meta = self.meta.sample(n=keep)
-        self.transform = transform
+        if data_opts.keep is not None:
+            self.meta = self.meta.sample(n=data_opts.keep)
+        self.transform = data_opts.transform
 
     def __getitem__(self, item: int) -> LOADED_ITEM:
         video_meta = pipe.VideoMeta(**self.meta.iloc[item][pipe.VideoMeta.fields].to_dict())
+
         if self.presenting:
-            video = pipe.Video(video_meta, self.cut)
+            video = pipe.Video(video_meta, self.do.cut, self.do.setting, None, None)
             label = pipe.Label(video_meta)
-            video.data = pipe.CenterCrop(224)(video.data)  # Hacky magic number. Should change.
-
-            return video, label
+            video.data = pipe.CenterCrop(224)(video.data)
         else:
-            video = pipe.Video(video_meta, self.cut, self.sample_size)
+            video = pipe.Video(video_meta, self.do.cut, self.do.setting, self.so.num_segments, self.so.segment_size)
             label = pipe.Label(video_meta)
-            if self.transform is not None:
-                video.data = self.transform(video.data)
+            video.data = self.transform(video.data)
 
-            return video.data, label.data
+        return video, label
 
     def get_batch(self, n: int) -> Tuple[List[pipe.Video], List[pipe.Label]]:
         self.presenting = True
@@ -81,21 +74,32 @@ class SmthDataset(thd.Dataset):
 
         return string
 
-    def collate(self, batch: List[Tuple[np.ndarray, int]]):
-        if self.presenting:
-            raise AttributeError('In presentation mode. Do not use DataLoader.')
-
+    def collate(self, batch: List[Tuple[np.ndarray, int]]) -> COLLATED_ITEMS:
+        """Transform list of videos and labels to fixed size tensors. If in evaluation or presentation mode, will
+        also return the video and label objects."""
         videos, labels = zip(*batch)
-        ml, mh, mw = self._max_dimensions(videos)
-        videos = self._pad_videos(videos, ml)
 
-        return thd.dataloader.default_collate(videos), thd.dataloader.default_collate(labels)
+        videos_data = [video.data for video in videos]
+        labels_data = [label.data for label in labels]
 
-    def _pad_videos(self, videos: Tuple[np.ndarray], ml: int) -> Tuple[np.ndarray]:
+        ml, mh, mw = self._max_dimensions(videos_data)
+        videos_data = self._pad_videos(videos_data, ml)
+
+        videos_data = thd.dataloader.default_collate(videos_data)
+        labels_data = thd.dataloader.default_collate(labels_data)
+
+        if self.evaluating or self.presenting:
+            batch = (videos_data, labels_data, videos, labels)
+        else:
+            batch = (videos_data, labels_data)
+
+        return batch
+
+    def _pad_videos(self, videos: List[np.ndarray], ml: int) -> Tuple[np.ndarray]:
         """Pad a tuple of videos to the same length."""
         return tuple(pipe.VideoPad(ml)(video) for video in videos)
 
-    def _max_dimensions(self, videos: Tuple[np.ndarray]) -> Tuple[int, int, int]:
+    def _max_dimensions(self, videos: List[np.ndarray]) -> Tuple[int, int, int]:
         """Get the maximum length, height, and width of a batch of videos."""
         ml = mh = mw = 0
         for video in videos:
@@ -118,6 +122,17 @@ if __name__ == '__main__':
         pipe.ToVolumeArray(),
         pipe.ArrayStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
     ])
-    dataset = SmthDataset(ct.SMTH_META_TRAIN, 1.0, 16, base_transform)
+    _data_opts = pipe.DataOptions(
+        meta_path=ct.SMTH_META_TRAIN,
+        cut=1.0,
+        setting='train',
+        transform=base_transform,
+    )
+    _sampling_opts = pipe.SamplingOptions(
+        num_segments=4,
+        segment_size=2
+    )
+    dataset = SmthDataset(_data_opts, _sampling_opts)
+
     x, y = dataset[0]
     b = dataset.get_batch(10)

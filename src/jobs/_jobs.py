@@ -1,5 +1,4 @@
 from typing import Dict, Any
-import pathlib as pl
 import os
 
 from jobs import options
@@ -56,10 +55,8 @@ def run_model(opts: options.ModelRunOptions):
 def evaluate_model(opts: options.ModelEvaluateOptions):
     """Gather results for a model and store in a data frame."""
     import postpro.evaluation as pe
-
-    run_dir = pl.Path(opts.run_dir)
     spec = getattr(specs, opts.spec)
-    pe.Evaluation(run_dir, spec).start()
+    pe.Evaluation(spec).start()
 
 
 def visualise_model(opts: options.ModelVisualiseOptions):
@@ -67,6 +64,5 @@ def visualise_model(opts: options.ModelVisualiseOptions):
     import postpro.visualisation as pv
 
     page = opts.page
-    run_dir = pl.Path(opts.run_dir)
     run_opts = getattr(specs, opts.spec)
-    pv.Visualisation(page, run_dir, run_opts).start()
+    pv.Visualisation(page, run_opts).start()
