@@ -34,7 +34,7 @@ def _augment_row(row: pd.Series) -> pd.Series:
     length = len(glob((jpeg_path / '*.jpeg').as_posix()))
     row['length'] = length
 
-    labels2id = hp.read_smth_labels2id(ct.SMTH_LABELS2ID)
+    labels2id = hp.read_smth_label2lid(ct.SMTH_LABEL2LID)
     row['template_id'] = labels2id[labels2id['template'] == row['template']]['id'].item()
 
     return row

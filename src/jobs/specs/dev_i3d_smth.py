@@ -1,15 +1,18 @@
 from torch import optim, nn, cuda
 from ignite import metrics
+import os
 
 from models import options
 import pipeline as pipe
 from models import i3d
 import constants as ct
 
+NUM_DEVICES = cuda.device_count() if cuda.device_count() > 0 else 1
+
 ########################################################################################################################
 # DATA BUNCH OPTIONS
 ########################################################################################################################
-data_bunch_opts = pipe.DataBunchOptions(
+db_opts = pipe.DataBunchOptions(
     shape='volume',
     frame_size=224
 )
@@ -25,14 +28,14 @@ train_so = pipe.SamplingOptions(
     num_segments=4,
     segment_size=4
 )
-train_data_set_opts = pipe.DataSetOptions(
+train_ds_opts = pipe.DataSetOptions(
     do=train_do,
     so=train_so
 )
-train_data_loader_opts = pipe.DataLoaderOptions(
-    batch_size=2,
+train_dl_opts = pipe.DataLoaderOptions(
+    batch_size=32,
     shuffle=True,
-    num_workers=0,
+    num_workers=os.cpu_count() // NUM_DEVICES,
     pin_memory=False,
     drop_last=False
 )
@@ -48,14 +51,14 @@ valid_so = pipe.SamplingOptions(
     num_segments=4,
     segment_size=4
 )
-valid_data_set_opts = pipe.DataSetOptions(
+valid_ds_opts = pipe.DataSetOptions(
     do=valid_do,
     so=valid_so
 )
-valid_data_loader_opts = pipe.DataLoaderOptions(
-    batch_size=2,
+valid_dl_opts = pipe.DataLoaderOptions(
+    batch_size=32,
     shuffle=False,
-    num_workers=0,
+    num_workers=os.cpu_count() // NUM_DEVICES,
     pin_memory=False,
     drop_last=False
 )
@@ -63,10 +66,10 @@ valid_data_loader_opts = pipe.DataLoaderOptions(
 # MODEL AND AUXILIARIES
 ########################################################################################################################
 model_opts = options.I3DOptions(
-    num_classes=10,
+    num_classes=ct.SMTH_NUM_CLASSES,
 )
 optimizer_opts = options.AdamOptimizerOptions(
-    lr=0.01
+    lr=0.001
 )
 trainer_opts = options.TrainerOptions(
     epochs=100,
@@ -77,7 +80,7 @@ trainer_opts = options.TrainerOptions(
 evaluator_opts = options.EvaluatorOptions(
     metrics={
         'acc@1': metrics.Accuracy(),
-        'acc@3': metrics.TopKCategoricalAccuracy(k=3),
+        'acc@2': metrics.TopKCategoricalAccuracy(k=2),
         'loss': metrics.Loss(nn.CrossEntropyLoss())
     }
 )
@@ -85,18 +88,18 @@ evaluator_opts = options.EvaluatorOptions(
 # RUN
 ########################################################################################################################
 dev_i3d_smth = options.RunOptions(
-    name=f'dev_{ct.SETTING}_i3d_smth',
+    name='dev_i3d_smth',
     resume=False,
     log_interval=1,
     patience=5,
     model=i3d.I3D,
     model_opts=model_opts,
     data_bunch=pipe.SmthDataBunch,
-    data_bunch_opts=data_bunch_opts,
-    train_data_set_opts=train_data_set_opts,
-    valid_data_set_opts=valid_data_set_opts,
-    train_data_loader_opts=train_data_loader_opts,
-    valid_data_loader_opts=valid_data_loader_opts,
+    db_opts=db_opts,
+    train_ds_opts=train_ds_opts,
+    valid_ds_opts=valid_ds_opts,
+    train_dl_opts=train_dl_opts,
+    valid_dl_opts=valid_dl_opts,
     trainer_opts=trainer_opts,
     evaluator_opts=evaluator_opts
 )

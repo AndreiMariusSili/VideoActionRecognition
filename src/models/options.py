@@ -34,7 +34,8 @@ class CriterionOptions:
 @dc.dataclass
 class LRCNOptions:
     num_classes: int
-    freeze_feature_extractor: bool
+    freeze_features: bool
+    freeze_fusion: bool
 
 
 @dc.dataclass
@@ -43,6 +44,14 @@ class I3DOptions:
     modality: str = 'rgb'
     dropout_prob: float = 0.0
     name: str = 'inception'
+
+
+@dc.dataclass
+class TADNOptions:
+    num_classes: int
+    time_steps: int
+    growth_rate: int
+    drop_rate: float
 
 
 @dc.dataclass
@@ -66,12 +75,12 @@ class RunOptions:
     log_interval: int
     patience: int
     model: Type[nn.Module]
-    model_opts: Union[LRCNOptions, I3DOptions]
+    model_opts: Union[LRCNOptions, I3DOptions, TADNOptions]
     data_bunch: Type[pipe.SmthDataBunch]
-    data_bunch_opts: pipe.DataBunchOptions
-    train_data_set_opts: pipe.DataSetOptions
-    valid_data_set_opts: pipe.DataSetOptions
-    train_data_loader_opts: pipe.DataLoaderOptions
-    valid_data_loader_opts: pipe.DataLoaderOptions
+    db_opts: pipe.DataBunchOptions
+    train_ds_opts: pipe.DataSetOptions
+    valid_ds_opts: pipe.DataSetOptions
+    train_dl_opts: pipe.DataLoaderOptions
+    valid_dl_opts: pipe.DataLoaderOptions
     trainer_opts: TrainerOptions
     evaluator_opts: EvaluatorOptions

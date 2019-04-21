@@ -1,14 +1,14 @@
-from torch.utils import data as thd
-from torch import cuda as thc
-from typing import Tuple, List
-from dataclasses import asdict
-from tqdm import tqdm
-import pandas as pd
 import os
+from typing import List, Optional, Tuple
 
-import pipeline as pipe
+import pandas as pd
+from dataclasses import asdict
+from torch.utils import data as thd
+from tqdm import tqdm
+
 import constants as ct
 import helpers as hp
+import pipeline as pipe
 
 
 class SmthDataBunch(object):
@@ -20,44 +20,57 @@ class SmthDataBunch(object):
     stats: 'pd.DataFrame'
 
     train_set: 'pipe.SmthDataset'
-    train_sampler: 'thd.DistributedSampler'
+    train_sampler: Optional['thd.DistributedSampler']
     train_loader: 'thd.DataLoader'
     valid_set: 'pipe.SmthDataset'
+    valid_sampler: Optional['thd.DistributedSampler']
     valid_loader: 'thd.DataLoader'
 
     def __init__(self, db_opts: pipe.DataBunchOptions,
                  train_ds_opts: pipe.DataSetOptions, valid_ds_opts: pipe.DataSetOptions,
                  train_dl_opts: pipe.DataLoaderOptions, valid_dl_opts: pipe.DataLoaderOptions):
         assert db_opts.shape in ['stack', 'volume'], f'Unknown shape {db_opts.shape}.'
-
         self.db_opts = db_opts
-        train_ds_opts.do.transform = pipe.VideoCompose([
+        self.train_ds_opts = train_ds_opts
+        self.train_dl_opts = train_dl_opts
+        self.valid_ds_opts = valid_ds_opts
+        self.valid_dl_opts = valid_dl_opts
+        self.stats = hp.read_smth_stats()
+        min_height = self.stats['min_height'].item()
+        min_width = self.stats['min_width'].item()
+        tfms = []
+        if db_opts.frame_size > min_height or db_opts.frame_size > min_width:
+            tfms.append(pipe.Pad(self.db_opts.frame_size, self.db_opts.frame_size))
+
+        train_tfms = tfms.copy()
+        train_tfms.extend([
             pipe.RandomCrop(db_opts.frame_size),
             pipe.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05),
             pipe.ToVolumeArray(3, True) if self.db_opts.shape == 'volume' else pipe.ClipToStackedArray(3),
             pipe.ArrayNormalize(255),
             pipe.ArrayStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
         ])
-        self.train_ds_opts = train_ds_opts
-        self.train_dl_opts = train_dl_opts
-        valid_ds_opts.do.transform = pipe.VideoCompose([
+        train_ds_opts.do.transform = pipe.VideoCompose(train_tfms)
+
+        valid_tfms = tfms.copy()
+        valid_tfms.extend([
             pipe.CenterCrop(db_opts.frame_size),
             pipe.ToVolumeArray() if self.db_opts.shape == 'volume' else pipe.ClipToStackedArray(3),
             pipe.ArrayNormalize(255),
             pipe.ArrayStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
         ])
-        self.valid_ds_opts = valid_ds_opts
-        self.valid_dl_opts = valid_dl_opts
-
-        self.stats = hp.read_smth_stats()
+        valid_ds_opts.do.transform = pipe.VideoCompose(valid_tfms)
 
         self.train_set = pipe.SmthDataset(self.train_ds_opts.do, self.train_ds_opts.so)
         self.valid_set = pipe.SmthDataset(self.valid_ds_opts.do, self.valid_ds_opts.so)
 
         self.train_sampler = None
+        self.valid_sampler = None
         if self.db_opts.distributed:
             self.train_sampler = thd.distributed.DistributedSampler(self.train_set)
             self.train_dl_opts.shuffle = False
+            self.valid_sampler = thd.distributed.DistributedSampler(self.valid_set)
+            self.valid_dl_opts.shuffle = False
 
         self.train_loader = thd.DataLoader(self.train_set,
                                            collate_fn=self.train_set.collate,
@@ -65,9 +78,10 @@ class SmthDataBunch(object):
                                            **asdict(self.train_dl_opts))
         self.valid_loader = thd.DataLoader(self.valid_set,
                                            collate_fn=self.valid_set.collate,
+                                           sampler=self.valid_sampler,
                                            **asdict(self.valid_dl_opts))
 
-    def get_batch(self, n: int, spl: str)-> Tuple[List[pipe.Video], List[pipe.Label]]:
+    def get_batch(self, n: int, spl: str) -> Tuple[List[pipe.Video], List[pipe.Label]]:
         """Retrieve a random batch from one of the datasets."""
         assert spl in ['train', 'valid'], f'Unknown split: {spl}.'
 

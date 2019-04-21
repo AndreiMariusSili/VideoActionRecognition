@@ -56,7 +56,7 @@ def evaluate_model(opts: options.ModelEvaluateOptions):
     """Gather results for a model and store in a data frame."""
     import postpro.evaluation as pe
     spec = getattr(specs, opts.spec)
-    pe.Evaluation(spec).start()
+    pe.Evaluation(spec, opts.local_rank).start()
 
 
 def visualise_model(opts: options.ModelVisualiseOptions):

@@ -10,8 +10,9 @@ from pipeline.transforms import functional as func
 
 __all__ = [
     'VideoTransform', 'VideoCompose',
-    'RandomHorizontalFlip', 'RandomResize',  'Resize', 'RandomCrop',  'CenterCrop',
-    'RandomRotation', 'ColorJitter'
+    'RandomHorizontalFlip', 'RandomResize', 'Resize', 'RandomCrop', 'CenterCrop',
+    'RandomRotation', 'ColorJitter',
+    'Pad',
 ]
 
 
@@ -223,3 +224,31 @@ class ColorJitter(VideoTransform):
         random.shuffle(img_transforms)
 
         return img_transforms
+
+
+class Pad(VideoTransform):
+
+    def __init__(self, std_height: int, std_width: int):
+        self.std_height = std_height
+        self.std_width = std_width
+
+    def __call__(self, video: List[Image.Image]) -> List[Image.Image]:
+        width, height = video[0].size
+
+        width_pad = max(self.std_width - width, 0)
+        if width_pad % 2 == 0:
+            left_pad = right_pad = width_pad // 2
+        else:
+            left_pad = width_pad // 2 + 1
+            right_pad = width_pad // 2
+
+        height_pad = max(self.std_height - height, 0)
+        if height_pad % 2 == 0:
+            top_pad = bottom_pad = height_pad // 2
+        else:
+            top_pad = height_pad // 2 + 1
+            bottom_pad = height_pad // 2
+
+        pad = torchvision.transforms.Pad((left_pad, top_pad, right_pad, bottom_pad))
+
+        return [pad(frame) for frame in video]

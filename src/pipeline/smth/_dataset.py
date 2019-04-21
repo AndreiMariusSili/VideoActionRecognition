@@ -1,12 +1,13 @@
-from torch.utils import data as thd
+import os
 from typing import List, Tuple, Union
+
 import numpy as np
 import torch as th
-import os
+from torch.utils import data as thd
 
-import pipeline as pipe
 import constants as ct
 import helpers as hp
+import pipeline as pipe
 
 LOADED_ITEM = Tuple[pipe.Video, pipe.Label]
 COLLATED_ITEMS = Union[Tuple[th.Tensor, th.Tensor], Tuple[th.Tensor, th.Tensor, pipe.Video, pipe.Label]]
@@ -31,10 +32,9 @@ class SmthDataset(thd.Dataset):
         self.so = sampling_opts
 
         self.meta = hp.read_smth_meta(data_opts.meta_path)
-        self.labels2id = hp.read_smth_labels2id(ct.SMTH_LABELS2ID)
 
         if data_opts.keep is not None:
-            self.meta = self.meta.sample(n=data_opts.keep)
+            self.meta = self.meta[0:data_opts.keep]
         self.transform = data_opts.transform
 
     def __getitem__(self, item: int) -> LOADED_ITEM:
@@ -136,3 +136,6 @@ if __name__ == '__main__':
 
     x, y = dataset[0]
     b = dataset.get_batch(10)
+
+    for i in range(len(dataset)):
+        x, y = dataset[i]

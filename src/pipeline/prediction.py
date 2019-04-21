@@ -16,8 +16,8 @@ class Prediction(object):
         """Compile the predictions to a column of bokeh divs."""
         rows = []
         template = '<span style="font-size: 8px">{prediction}</span>'
-        for pred, conf in [('pred_1', 'conf_1'), ('pred_2', 'conf_2'), ('pred_3', 'conf_3')]:
-            pred, conf = getattr(self.meta, f'top3_{pred}'), getattr(self.meta, f'top3_{conf}')
+        for pred, conf in [('pred_1', 'conf_1'), ('pred_2', 'conf_2')]:
+            pred, conf = getattr(self.meta, f'top2_{pred}'), getattr(self.meta, f'top2_{conf}')
             pred_temp = id2template.loc[pred]['template']
             pred_div = bom.Div(text=template.format(prediction=pred_temp))
             conf_div = bom.Div(text=template.format(prediction=round(conf, 4)))

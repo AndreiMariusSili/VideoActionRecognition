@@ -1,15 +1,18 @@
-from torch import optim, nn
+from torch import optim, nn, cuda
 from ignite import metrics
+import os
 
 from models import options
 import pipeline as pipe
 from models import lrcn
 import constants as ct
 
+NUM_DEVICES = cuda.device_count() if cuda.device_count() > 0 else 1
+
 ########################################################################################################################
 # DATA BUNCH OPTIONS
 ########################################################################################################################
-data_bunch_opts = pipe.DataBunchOptions(
+db_opts = pipe.DataBunchOptions(
     shape='volume',
     frame_size=224
 )
@@ -26,14 +29,14 @@ train_so = pipe.SamplingOptions(
     num_segments=4,
     segment_size=4
 )
-train_data_set_opts = pipe.DataSetOptions(
+train_ds_opts = pipe.DataSetOptions(
     do=train_do,
     so=train_so
 )
-train_data_loader_opts = pipe.DataLoaderOptions(
+train_dl_opts = pipe.DataLoaderOptions(
     batch_size=2,
     shuffle=True,
-    num_workers=0,
+    num_workers=os.cpu_count() // NUM_DEVICES,
     pin_memory=False,
     drop_last=False
 )
@@ -44,20 +47,20 @@ valid_do = pipe.DataOptions(
     meta_path=ct.SMTH_META_VALID,
     cut=1.0,
     setting='valid',
-    keep=1
+    keep=2
 )
 valid_so = pipe.SamplingOptions(
     num_segments=4,
     segment_size=4
 )
-valid_data_set_opts = pipe.DataSetOptions(
+valid_ds_opts = pipe.DataSetOptions(
     do=valid_do,
     so=valid_so
 )
-valid_data_loader_opts = pipe.DataLoaderOptions(
+valid_dl_opts = pipe.DataLoaderOptions(
     batch_size=2,
     shuffle=False,
-    num_workers=0,
+    num_workers=os.cpu_count() // NUM_DEVICES,
     pin_memory=False,
     drop_last=False
 )
@@ -65,8 +68,9 @@ valid_data_loader_opts = pipe.DataLoaderOptions(
 # MODEL AND AUXILIARIES
 ########################################################################################################################
 model_opts = options.LRCNOptions(
-    num_classes=10,
-    freeze_feature_extractor=True
+    num_classes=ct.SMTH_NUM_CLASSES,
+    freeze_features=False,
+    freeze_fusion=False
 )
 optimizer_opts = options.AdamOptimizerOptions(
     lr=0.01
@@ -88,18 +92,18 @@ evaluator_opts = options.EvaluatorOptions(
 # RUN
 ########################################################################################################################
 dev_lrcn_smth = options.RunOptions(
-    name=f'dev_{ct.SETTING}_lrcn_smth',
+    name=f'dev_lrcn_smth',
     resume=True,
     log_interval=1,
     patience=5,
     model=lrcn.LRCN,
     model_opts=model_opts,
     data_bunch=pipe.SmthDataBunch,
-    data_bunch_opts=data_bunch_opts,
-    train_data_set_opts=train_data_set_opts,
-    valid_data_set_opts=valid_data_set_opts,
-    train_data_loader_opts=train_data_loader_opts,
-    valid_data_loader_opts=valid_data_loader_opts,
+    db_opts=db_opts,
+    train_ds_opts=train_ds_opts,
+    valid_ds_opts=valid_ds_opts,
+    train_dl_opts=train_dl_opts,
+    valid_dl_opts=valid_dl_opts,
     trainer_opts=trainer_opts,
     evaluator_opts=evaluator_opts
 )

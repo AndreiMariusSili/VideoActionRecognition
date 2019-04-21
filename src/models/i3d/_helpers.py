@@ -1,9 +1,8 @@
 # Based on implementation from https://github.com/hassony2/kinetics_i3d_pytorch
 
 from typing import Tuple, List, Dict, Any
-import tensorflow as tf
-import torch as th
 import numpy as np
+import torch as th
 import math
 import os
 
@@ -42,7 +41,7 @@ def simplify_padding(padding_shapes: Tuple[int, ...]) -> Tuple[bool, int]:
     return all_same, padding_init
 
 
-def get_conv_params(sess: tf.Session, name, bias=False) -> List[tf.Tensor]:
+def get_conv_params(sess: Any, name: str, bias=False) -> List[Any]:
     # Get conv weights
     conv_weights_tensor = sess.graph.get_tensor_by_name(os.path.join(name, 'w:0'))
     conv_weights = sess.run(conv_weights_tensor)
@@ -68,7 +67,7 @@ def get_conv_params(sess: tf.Session, name, bias=False) -> List[tf.Tensor]:
     return conv_params
 
 
-def get_bn_params(sess: tf.Session, name: str) -> Tuple[tf.Tensor, ...]:
+def get_bn_params(sess: Any, name: str) -> Tuple[Any, ...]:
     moving_mean_tensor = sess.graph.get_tensor_by_name(os.path.join(name, 'moving_mean:0'))
     moving_var_tensor = sess.graph.get_tensor_by_name(os.path.join(name, 'moving_variance:0'))
     beta_tensor = sess.graph.get_tensor_by_name(os.path.join(name, 'beta:0'))
@@ -94,7 +93,7 @@ def _get_padding(padding_name: bytes, conv_shape: Tuple[int, int, int]) -> List[
         return [0, 0]
 
 
-def load_conv3d(state_dict: Dict[str, Any], name_pt: str, sess: tf.Session, name_tf: str,
+def load_conv3d(state_dict: Dict[str, Any], name_pt: str, sess: Any, name_tf: str,
                 bias: bool = False, bn: bool = True) -> None:
     # Transfer convolution params
     conv_name_tf = os.path.join(name_tf, 'conv_3d')
@@ -121,7 +120,7 @@ def load_conv3d(state_dict: Dict[str, Any], name_pt: str, sess: tf.Session, name
         state_dict[name_pt + '.batch3d.running_var'] = th.from_numpy(moving_var.squeeze())
 
 
-def load_mixed(state_dict: Dict[str, Any], name_pt: str, sess: tf.Session, name_tf: str, fix_typo=False) -> None:
+def load_mixed(state_dict: Dict[str, Any], name_pt: str, sess: Any, name_tf: str, fix_typo=False) -> None:
     # Branch 0
     load_conv3d(state_dict, name_pt + '.branch_0', sess, os.path.join(name_tf, 'Branch_0/Conv3d_0a_1x1'))
 
