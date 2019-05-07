@@ -1,12 +1,11 @@
-from torch import optim, nn
-from ignite import metrics
 import os
 
-from models import options
-import pipeline as pipe
-from models import lrcn
-import constants as ct
+from ignite import metrics
+from torch import nn, optim
 
+import constants as ct
+import pipeline as pipe
+from models import lrcn, options
 
 ########################################################################################################################
 # DATA BUNCH OPTIONS
@@ -90,6 +89,7 @@ evaluator_opts = options.EvaluatorOptions(
 ########################################################################################################################
 lrcn_smth_100 = options.RunOptions(
     name=f'lrcn_smth_100',
+    mode='discriminative',
     resume=False,
     log_interval=10,
     patience=5,

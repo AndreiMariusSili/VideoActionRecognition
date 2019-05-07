@@ -49,6 +49,15 @@ def read_smth_results(path: Union[pl.Path, str]) -> pd.DataFrame:
     return df
 
 
+def read_smth_embeddings(path: Union[pl.Path, str]) -> pd.DataFrame:
+    """Read in the results json as a DataFrame."""
+    path = pl.Path(path)
+    with path.open('r', encoding='utf-8') as file:
+        df = pd.read_json(file, orient='records', typ='frame', dtype=False, encoding='utf-8')
+    df.y = df.y.map(str)
+    return df
+
+
 def read_smth_stats(path: pl.Path = ct.SMTH_STATS_MERGED) -> pd.DataFrame:
     """Read in the stats json as a DataFrame."""
     with path.open('r', encoding='utf-8') as file:

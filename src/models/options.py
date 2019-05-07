@@ -1,7 +1,7 @@
-from typing import Optional, Dict, Any, Union, Type, Tuple
+from typing import Any, Dict, Optional, Tuple, Type, Union
+
 import dataclasses as dc
-from torch import optim
-from torch import nn
+from torch import nn, optim
 
 import pipeline as pipe
 
@@ -32,10 +32,35 @@ class CriterionOptions:
 
 
 @dc.dataclass
+class VAECriterionOptions(CriterionOptions):
+    mse_factor: float
+    ce_factor: float
+
+
+@dc.dataclass
 class LRCNOptions:
     num_classes: int
     freeze_features: bool
     freeze_fusion: bool
+
+
+@dc.dataclass
+class Unit3DOptions:
+    in_channels: int
+    out_channels: int
+    kernel_size: Tuple[int, int, int] = (1, 1, 1)
+    stride: Tuple[int, int, int] = (1, 1, 1)
+    activation: str = 'relu'
+    padding: str = 'SAME'
+    use_bias: bool = False
+    use_bn: bool = True
+
+
+@dc.dataclass
+class VAEI3DOptions:
+    latent_size: int
+    dropout_prob: float
+    num_classes: int
 
 
 @dc.dataclass
@@ -71,11 +96,12 @@ class EvaluatorOptions:
 @dc.dataclass
 class RunOptions:
     name: str
+    mode: str
     resume: bool
     log_interval: int
     patience: int
     model: Type[nn.Module]
-    model_opts: Union[LRCNOptions, I3DOptions, TADNOptions]
+    model_opts: Union[LRCNOptions, I3DOptions, TADNOptions, VAEI3DOptions]
     data_bunch: Type[pipe.SmthDataBunch]
     db_opts: pipe.DataBunchOptions
     train_ds_opts: pipe.DataSetOptions

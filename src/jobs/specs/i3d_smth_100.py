@@ -87,6 +87,7 @@ evaluator_opts = options.EvaluatorOptions(
 ########################################################################################################################
 i3d_smth_100 = options.RunOptions(
     name=f'i3d_smth_100',
+    mode='discriminative',
     resume=False,
     log_interval=10,
     patience=5,

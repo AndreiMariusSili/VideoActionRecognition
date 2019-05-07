@@ -1,6 +1,7 @@
 from jobs.specs.dev_i3d_smth import dev_i3d_smth
 from jobs.specs.dev_lrcn_smth import dev_lrcn_smth
 from jobs.specs.dev_tadn_smth import dev_tadn_smth
+from jobs.specs.dev_vaei3d_smth import dev_vaei3d_smth
 from jobs.specs.i3d_smth_025 import i3d_smth_025
 from jobs.specs.i3d_smth_025_resume import i3d_smth_025_resume
 from jobs.specs.i3d_smth_050 import i3d_smth_050

@@ -1,10 +1,11 @@
-from torch import optim, nn, cuda
-from ignite import metrics
 import os
 
-from models import options, tadn
-import pipeline as pipe
+from ignite import metrics
+from torch import nn, optim
+
 import constants as ct
+import pipeline as pipe
+from models import options, tadn
 
 ########################################################################################################################
 # DATA BUNCH OPTIONS
@@ -89,6 +90,7 @@ evaluator_opts = options.EvaluatorOptions(
 ########################################################################################################################
 dev_tadn_smth = options.RunOptions(
     name='dev_tadn_smth',
+    mode='discriminative',
     resume=False,
     log_interval=1,
     patience=5,

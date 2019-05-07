@@ -1,11 +1,11 @@
-from torch import optim, nn, cuda
-from ignite import metrics
 import os
 
-from models import options
-import pipeline as pipe
-from models import i3d
+from ignite import metrics
+from torch import cuda, nn, optim
+
 import constants as ct
+import pipeline as pipe
+from models import i3d, options
 
 NUM_DEVICES = cuda.device_count() if cuda.device_count() > 0 else 1
 
@@ -58,7 +58,7 @@ valid_ds_opts = pipe.DataSetOptions(
 valid_dl_opts = pipe.DataLoaderOptions(
     batch_size=32,
     shuffle=False,
-    num_workers=os.cpu_count() // NUM_DEVICES,
+    num_workers=os.cpu_count(),
     pin_memory=False,
     drop_last=False
 )
@@ -89,6 +89,7 @@ evaluator_opts = options.EvaluatorOptions(
 ########################################################################################################################
 dev_i3d_smth = options.RunOptions(
     name='dev_i3d_smth',
+    mode='discriminative',
     resume=False,
     log_interval=1,
     patience=5,

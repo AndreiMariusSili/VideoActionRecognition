@@ -5,6 +5,7 @@ from typing import Any, Tuple
 
 import dataclasses as dc
 import pandas as pd
+import sklearn.manifold as skm
 import torch as th
 from torch import cuda, distributed, nn
 
@@ -86,9 +87,10 @@ class Evaluation(object):
         self.run_opts.db_opts.distributed = self.world_size > 1
 
         # make sure batch and workers and distributed well across worlds.
-        self.run_opts.train_dl_opts.batch_size = self.run_opts.train_dl_opts.batch_size // self.world_size * ct.NUM_DEVICES
+        factor = self.world_size * ct.NUM_DEVICES
+        self.run_opts.train_dl_opts.batch_size = self.run_opts.train_dl_opts.batch_size // factor
         self.run_opts.train_dl_opts.num_workers = self.run_opts.train_dl_opts.num_workers // self.world_size
-        self.run_opts.valid_dl_opts.batch_size = self.run_opts.valid_dl_opts.batch_size // self.world_size * ct.NUM_DEVICES
+        self.run_opts.valid_dl_opts.batch_size = self.run_opts.valid_dl_opts.batch_size // factor
         self.run_opts.valid_dl_opts.num_workers = self.run_opts.valid_dl_opts.num_workers // self.world_size
 
         self.data_bunch = self.run_opts.data_bunch(self.run_opts.db_opts,
@@ -113,6 +115,8 @@ class Evaluation(object):
         results['top2_conf_2'] = None
         results['top2_pred_1'] = None
         results['top2_pred_2'] = None
+        results['proj_x1'] = None
+        results['proj_x2'] = None
 
         if split == 'train':
             self.train_results = results
@@ -125,8 +129,8 @@ class Evaluation(object):
         """Get the score of a checkpoint from its filename."""
         return float(path.as_posix().replace('.pth', '').split('=').pop())
 
-    def _evaluate_split(self, split: str) -> 'Evaluation':
-        """Get top1 and top2 results for a split an store in DataFrame."""
+    def _evaluate_split_discriminative(self, split: str) -> 'Evaluation':
+        """Get top1 and top2 results for a split and store in DataFrame."""
         assert split in ['train', 'valid'], f'Unknown split: {split}.'
         if self.rank == 0:
             logging.info(f'Starting {split} evaluation...')
@@ -183,11 +187,103 @@ class Evaluation(object):
 
         return self
 
+    def _evaluate_split_variational(self, split: str) -> 'Evaluation':
+        """Get top1 and top2 results for a split and store in DataFrame."""
+        assert split in ['train', 'valid'], f'Unknown split: {split}.'
+        if self.rank == 0:
+            logging.info(f'Starting {split} evaluation...')
+        if split == 'train':
+            dataset = self.data_bunch.train_set
+            loader = self.data_bunch.train_loader
+            options = self.data_bunch.train_dl_opts
+            results = self.train_results
+        else:
+            dataset = self.data_bunch.valid_set
+            loader = self.data_bunch.valid_loader
+            options = self.data_bunch.valid_dl_opts
+            results = self.valid_results
+        with th.no_grad():
+            self.model.eval()
+            dataset.evaluating = True
+            softmax = nn.Softmax(dim=-1)
+            total = len(dataset) // options.batch_size
+
+            ids = []
+            # targets = []
+            conf1s = []
+            top1s = []
+            conf2s = []
+            top2s = []
+            latents = []
+
+            for i, (video_data, video_labels, videos, labels) in enumerate(loader):
+                x = video_data.to(device=self.device, non_blocking=True)
+                ids.extend([video.meta.id for video in videos])
+
+                _recon, _pred, _latent, _mean, _log_var = self.model.inference(x, True, 0)
+                _pred_probs = softmax(_pred)
+                conf1, top1 = _pred_probs.max(dim=-1)
+                conf1s.append(conf1)
+                top1s.append(top1)
+
+                _recon, _pred, _latent, _mean, _log_var = self.model.inference(x, False, 2)
+                _pred_probs = softmax(_pred)
+                conf2, top2 = _pred_probs.max(dim=-1)
+                conf2s.append(conf2)
+                top2s.append(top2)
+
+                _recon, _pred, _latent, _mean, _log_var = self.model.inference(x, False, 1)
+                latents.append(_latent.view(-1, self.run_opts.model_opts.latent_size))
+                # targets.append(video_labels)
+                if self.rank == 0:
+                    logging.info(f'[Batch: {i + 1}/{total}]')
+
+        conf1s = th.cat(tuple(conf1s), dim=0).cpu().numpy()
+        top1s = th.cat(tuple(top1s), dim=0).cpu().numpy()
+        conf2s = th.cat(tuple(conf2s), dim=0).cpu().numpy()
+        top2s = th.cat(tuple(top2s), dim=0).cpu().numpy()
+        latents = th.cat(tuple(latents), dim=0).cpu().numpy()
+        # targets = th.cat(tuple(targets), dim=0).cpu().numpy().reshape(-1, 1)
+        tsne = skm.TSNE()
+        latent_projections = tsne.fit_transform(latents)
+
+        results.loc[ids, 'top1_conf'] = conf1s
+        results.loc[ids, 'top1_pred'] = top1s
+        results.loc[ids, ['top2_conf_1', 'top2_conf_2']] = conf2s
+        results.loc[ids, ['top2_pred_1', 'top2_pred_2']] = top2s
+        results.loc[ids, ['proj_x1', 'proj_x2']] = latent_projections
+        results.to_json(self.run_dir / f'results_{split}_{self.rank}.json', orient='records')
+
+        # # embeddings = np.concatenate([latent_projections, targets], axis=1)
+        # embeddings = pd.DataFrame(data=embeddings, index=ids, columns=['x1', 'x2', 'y'])
+        # embeddings.to_json(self.run_dir / f'embeddings_{split}_{self.rank}.json', orient='index')
+
+        if distributed.is_available():
+            distributed.barrier()
+
+        if self.rank == 0:
+            results = hp.read_smth_results(self.run_dir / f'results_{split}_{self.rank}.json')
+            # embeds = hp.read_smth_embeddings(self.run_dir / f'embeddings_{split}_{self.rank}.json')
+            for rank in range(1, self.world_size):
+                results = results.combine_first(hp.read_smth_results(self.run_dir / f'results_{split}_{rank}.json'))
+                # embeds = embeds.combine_first(hp.read_smth_embeddings(self.run_dir / f'embeddings_{split}_{rank}.json'))
+            cols = ['top1_conf', 'top1_pred', 'top2_conf_1', 'top2_conf_2', 'top2_pred_1', 'top2_pred_2', 'proj_x1',
+                    'proj_x2']
+            for col in cols:
+                assert len(results[results[col].isnull()]) == 0, f'{col}, {len(results[results[col].isnull()])}'
+            results.to_json(self.run_dir / f'results_{split}.json', orient='records')
+            # embeds.to_json(self.run_dir / f'embeddings_{split}.json', orient='records')
+
+        return self
+
     def start(self):
         """Evaluates and stores result of a model."""
         # noinspection PyBroadException
         try:
-            self._evaluate_split('train')._evaluate_split('valid')
+            if self.run_opts.mode == 'discriminative':
+                self._evaluate_split_discriminative('train')._evaluate_split_discriminative('valid')
+            else:
+                self._evaluate_split_variational('train')._evaluate_split_variational('valid')
 
             if distributed.is_available():
                 distributed.barrier()

@@ -51,6 +51,9 @@ class Visualisation(object):
     train_group_confusion_fig: bop.Figure
     valid_group_confusion_fig: bop.Figure
 
+    train_embeddings: bom.ColumnDataSource
+    valid_embeddings: bom.ColumnDataSource
+
     def __init__(self, page: str, spec: mo.RunOptions):
         """Init a visualizer with a run model. They need to match."""
         self.page = page
@@ -63,11 +66,13 @@ class Visualisation(object):
         if self.page == 'details':
             self._start_details_page()
         elif self.page == 'stats':
-            self._start_run_stats_page()
+            self._start_stats_page()
         elif self.page == 'results':
             self._start_results_page()
         elif self.page == 'confusion':
             self._start_confusion_page()
+        elif self.page == 'embeddings':
+            self._start_embeddings_page()
 
     def _get_best_ckpt(self) -> 'Visualisation':
         """Get the path to the best checkpoint."""
@@ -146,7 +151,7 @@ class Visualisation(object):
             ], sizing_mode='stretch_both')
         self.doc.add_root(layout)
 
-    def _start_run_stats_page(self):
+    def _start_stats_page(self):
         """Create a grid of training/validation statistics and appends them to the list of tabs."""
         fkwargs = {
             'height': 300,
@@ -176,6 +181,9 @@ class Visualisation(object):
         self.__sample_batch(18).__convert_to_rgba().__init_results_doc() \
             .__init_tick().__render_batch().__arrange_batch() \
             .__render_results_page()
+
+    def _start_embeddings_page(self):
+        self.__render_embeddings().__render_embeddings_page()
 
     def _start_confusion_page(self):
         self.__on('train') \
@@ -222,6 +230,18 @@ class Visualisation(object):
 
         return self
 
+    def __arrange_batch(self) -> 'Visualisation':
+        """Arrange all figures in a grid layout."""
+        no_cols = 6
+        no_rows = len(self.batch) // no_cols + len(self.batch) % no_cols
+        rows = []
+        for i in range(no_rows):
+            row_figs = self.batch[(no_cols * i):(no_cols * (i + 1))]
+            rows.append(bol.row(row_figs, height=300))
+        self.batch = rows
+
+        return self
+
     def __render_batch(self) -> 'Visualisation':
         """Create columns of image, ground truth and top2 predictions."""
         self.batch = []
@@ -234,17 +254,42 @@ class Visualisation(object):
 
         return self
 
-    def __arrange_batch(self) -> 'Visualisation':
-        """Arrange all figures in a grid layout."""
-        no_cols = 6
-        no_rows = len(self.batch) // no_cols + len(self.batch) % no_cols
-        rows = []
-        for i in range(no_rows):
-            row_figs = self.batch[(no_cols * i):(no_cols * (i + 1))]
-            rows.append(bol.row(row_figs, height=300))
-        self.batch = rows
+    def __render_embeddings(self):
+        train_embeddings = self.train_results[['proj_x1', 'proj_x2', 'template']]
+        valid_embeddings = self.valid_results[['proj_x1', 'proj_x2', 'template']]
+
+        tools = ['hover', 'save']
+        tooltips = [
+            ('Template', '@template'),
+        ]
+
+        legend_items = []
+        fig = bop.figure(title='Train Embeddings Projection', tooltips=tooltips, tools=tools)
+        for i, template in enumerate(self.train_results.template.unique()):
+            # noinspection PyUnresolvedReferences
+            source = bom.ColumnDataSource(train_embeddings[train_embeddings['template'] == template])
+            glyph = fig.circle('proj_x1', 'proj_x2', source=source, fill_color=pal.Viridis256[i], line_color=None)
+            legend_items.append((template, [glyph]))
+        legend = bom.Legend(items=legend_items, location='center')
+        fig.add_layout(legend, 'right')
+        self.train_embeddings_figure = fig
+
+        legend_items = []
+        fig = bop.figure(title='Valid Embeddings Projection', tooltips=tooltips, tools=tools)
+        for i, template in enumerate(self.valid_results.template.unique()):
+            # noinspection PyUnresolvedReferences
+            source = bom.ColumnDataSource(valid_embeddings[valid_embeddings['template'] == template])
+            glyph = fig.circle('proj_x1', 'proj_x2', source=source, fill_color=pal.Viridis256[i], line_color=None)
+            legend_items.append((template, [glyph]))
+        legend = bom.Legend(items=legend_items, location='center')
+        fig.add_layout(legend, 'right')
+        self.valid_embeddings_figure = fig
 
         return self
+
+    def __render_embeddings_page(self):
+        self.doc.add_root(bol.gridplot([[self.train_embeddings_figure, self.valid_embeddings_figure]],
+                                       sizing_mode='scale_width'))
 
     def __create_label_confusion(self, normalize: bool = True) -> 'Visualisation':
         """Creates a stacked DataFrame representing the confusion matrix and loads it into a ColumnDataSource."""

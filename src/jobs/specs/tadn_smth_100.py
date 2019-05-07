@@ -92,6 +92,7 @@ evaluator_opts = options.EvaluatorOptions(
 ########################################################################################################################
 tadn_smth_100 = options.RunOptions(
     name=f'tadn_smth_100',
+    mode='discriminative',
     resume=False,
     log_interval=10,
     patience=5,
