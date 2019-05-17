@@ -1,9 +1,10 @@
 import pathlib as pl
 import traceback
 from glob import glob
-from typing import Any, Tuple
+from typing import Any, List, Tuple
 
 import dataclasses as dc
+import numpy as np
 import pandas as pd
 import sklearn.manifold as skm
 import torch as th
@@ -42,7 +43,10 @@ class Evaluation(object):
     def _init_distributed(self) -> Tuple[int, int]:
         """Initialize the process pool if distributed is available."""
         if distributed.is_available():
-            distributed.init_process_group(backend='nccl', init_method='env://')
+            if cuda.is_available():
+                distributed.init_process_group(backend='nccl', init_method='env://')
+            else:
+                distributed.init_process_group(backend='gloo', init_method='env://')
             rank = distributed.get_rank()
             world_size = distributed.get_world_size()
         else:
@@ -87,10 +91,10 @@ class Evaluation(object):
         self.run_opts.db_opts.distributed = self.world_size > 1
 
         # make sure batch and workers and distributed well across worlds.
-        factor = self.world_size * ct.NUM_DEVICES
-        self.run_opts.train_dl_opts.batch_size = self.run_opts.train_dl_opts.batch_size // factor
+        # factor = self.world_size * ct.NUM_DEVICES
+        self.run_opts.train_dl_opts.batch_size = self.run_opts.train_dl_opts.batch_size // self.world_size
         self.run_opts.train_dl_opts.num_workers = self.run_opts.train_dl_opts.num_workers // self.world_size
-        self.run_opts.valid_dl_opts.batch_size = self.run_opts.valid_dl_opts.batch_size // factor
+        self.run_opts.valid_dl_opts.batch_size = self.run_opts.valid_dl_opts.batch_size // self.world_size
         self.run_opts.valid_dl_opts.num_workers = self.run_opts.valid_dl_opts.num_workers // self.world_size
 
         self.data_bunch = self.run_opts.data_bunch(self.run_opts.db_opts,
@@ -148,29 +152,51 @@ class Evaluation(object):
             self.model.eval()
             dataset.evaluating = True
             softmax = nn.Softmax(dim=-1)
-            total = len(dataset) // options.batch_size
+            total = len(dataset) // options.batch_size + int(len(dataset) % options.batch_size > 0)
+
+            ids = []
+            targets = []
+            conf1s = []
+            top1s = []
+            conf2s = []
+            top2s = []
+            embeds = []
 
             for i, (video_data, video_labels, videos, labels) in enumerate(loader):
                 x = video_data.to(device=self.device, non_blocking=True)
-                e = self.model(x)
-                p = softmax(e)
-                conf1, top1 = p.max(dim=-1)
-                conf2, top2 = p.topk(2, dim=-1)
-                ids = [video.meta.id for video in videos]
-                results.loc[ids, 'top1_conf'] = conf1.cpu().numpy()
-                results.loc[ids, 'top1_pred'] = top1.cpu().numpy()
-                results.loc[ids, ['top2_conf_1', 'top2_conf_2']] = conf2.cpu().numpy()
-                results.loc[ids, ['top2_pred_1', 'top2_pred_2']] = top2.cpu().numpy()
+                ids.extend([video.meta.id for video in videos])
+                targets.extend([label.data for label in labels])
 
-                del e
-                del p
-                del conf1
-                del conf2
-                del top1
-                del top2
+                pred, embed = self.model(x)
+                pred_probs = softmax(pred)
+                conf1, top1 = pred_probs.max(dim=-1)
+                conf2, top2 = pred_probs.topk(2, dim=-1)
+
+                conf1s.append(conf1)
+                top1s.append(top1)
+                conf2s.append(conf2)
+                top2s.append(top2)
+                embeds.append(embed)
 
                 if self.rank == 0:
-                    logging.info(f'[Batch: {i}/{total}]')
+                    logging.info(f'[Batch: {i + 1}/{total}]')
+
+        conf1s = th.cat(tuple(conf1s), dim=0).cpu().numpy()
+        top1s = th.cat(tuple(top1s), dim=0).cpu().numpy()
+        conf2s = th.cat(tuple(conf2s), dim=0).cpu().numpy()
+        top2s = th.cat(tuple(top2s), dim=0).cpu().numpy()
+        results.loc[ids, 'top1_conf'] = conf1s
+        results.loc[ids, 'top1_pred'] = top1s
+        results.loc[ids, ['top2_conf_1', 'top2_conf_2']] = conf2s.reshape(-1, 2)
+        results.loc[ids, ['top2_pred_1', 'top2_pred_2']] = top2s.reshape(-1, 2)
+
+        ids, embeds = self._stratified_sample_latents(ids, targets, embeds)
+        try:
+            tsne = skm.TSNE()
+            embed_projections = tsne.fit_transform(embeds)
+        except ValueError as e:
+            embed_projections = np.array([100, 100])
+        results.loc[ids, ['proj_x1', 'proj_x2']] = embed_projections
         results.to_json(self.run_dir / f'results_{split}_{self.rank}.json', orient='records')
 
         if distributed.is_available():
@@ -206,10 +232,10 @@ class Evaluation(object):
             self.model.eval()
             dataset.evaluating = True
             softmax = nn.Softmax(dim=-1)
-            total = len(dataset) // options.batch_size
+            total = len(dataset) // options.batch_size + int(len(dataset) % options.batch_size > 0)
 
             ids = []
-            # targets = []
+            targets = []
             conf1s = []
             top1s = []
             conf2s = []
@@ -219,22 +245,23 @@ class Evaluation(object):
             for i, (video_data, video_labels, videos, labels) in enumerate(loader):
                 x = video_data.to(device=self.device, non_blocking=True)
                 ids.extend([video.meta.id for video in videos])
+                targets.extend([label.data for label in labels])
 
-                _recon, _pred, _latent, _mean, _log_var = self.model.inference(x, True, 0)
+                _recon, _pred, _latent, _mean, _log_var = self.model(x, True, True, 0)
                 _pred_probs = softmax(_pred)
                 conf1, top1 = _pred_probs.max(dim=-1)
                 conf1s.append(conf1)
                 top1s.append(top1)
 
-                _recon, _pred, _latent, _mean, _log_var = self.model.inference(x, False, 2)
+                _recon, _pred, _latent, _mean, _log_var = self.model(x, True, False, 2)
                 _pred_probs = softmax(_pred)
                 conf2, top2 = _pred_probs.max(dim=-1)
                 conf2s.append(conf2)
                 top2s.append(top2)
 
-                _recon, _pred, _latent, _mean, _log_var = self.model.inference(x, False, 1)
+                _recon, _pred, _latent, _mean, _log_var = self.model(x, True, False, 1)
                 latents.append(_latent.view(-1, self.run_opts.model_opts.latent_size))
-                # targets.append(video_labels)
+
                 if self.rank == 0:
                     logging.info(f'[Batch: {i + 1}/{total}]')
 
@@ -242,39 +269,48 @@ class Evaluation(object):
         top1s = th.cat(tuple(top1s), dim=0).cpu().numpy()
         conf2s = th.cat(tuple(conf2s), dim=0).cpu().numpy()
         top2s = th.cat(tuple(top2s), dim=0).cpu().numpy()
-        latents = th.cat(tuple(latents), dim=0).cpu().numpy()
-        # targets = th.cat(tuple(targets), dim=0).cpu().numpy().reshape(-1, 1)
-        tsne = skm.TSNE()
-        latent_projections = tsne.fit_transform(latents)
-
         results.loc[ids, 'top1_conf'] = conf1s
         results.loc[ids, 'top1_pred'] = top1s
-        results.loc[ids, ['top2_conf_1', 'top2_conf_2']] = conf2s
-        results.loc[ids, ['top2_pred_1', 'top2_pred_2']] = top2s
+        results.loc[ids, ['top2_conf_1', 'top2_conf_2']] = conf2s.reshape(-1, 2)
+        results.loc[ids, ['top2_pred_1', 'top2_pred_2']] = top2s.reshape(-1, 2)
+
+        ids, latents = self._stratified_sample_latents(ids, targets, latents)
+        try:
+            tsne = skm.TSNE()
+            latent_projections = tsne.fit_transform(latents)
+        except ValueError as e:
+            latent_projections = np.array([100, 100])
         results.loc[ids, ['proj_x1', 'proj_x2']] = latent_projections
         results.to_json(self.run_dir / f'results_{split}_{self.rank}.json', orient='records')
-
-        # # embeddings = np.concatenate([latent_projections, targets], axis=1)
-        # embeddings = pd.DataFrame(data=embeddings, index=ids, columns=['x1', 'x2', 'y'])
-        # embeddings.to_json(self.run_dir / f'embeddings_{split}_{self.rank}.json', orient='index')
 
         if distributed.is_available():
             distributed.barrier()
 
         if self.rank == 0:
             results = hp.read_smth_results(self.run_dir / f'results_{split}_{self.rank}.json')
-            # embeds = hp.read_smth_embeddings(self.run_dir / f'embeddings_{split}_{self.rank}.json')
             for rank in range(1, self.world_size):
                 results = results.combine_first(hp.read_smth_results(self.run_dir / f'results_{split}_{rank}.json'))
-                # embeds = embeds.combine_first(hp.read_smth_embeddings(self.run_dir / f'embeddings_{split}_{rank}.json'))
-            cols = ['top1_conf', 'top1_pred', 'top2_conf_1', 'top2_conf_2', 'top2_pred_1', 'top2_pred_2', 'proj_x1',
-                    'proj_x2']
+            cols = ['top1_conf', 'top1_pred', 'top2_conf_1', 'top2_conf_2', 'top2_pred_1', 'top2_pred_2']
             for col in cols:
                 assert len(results[results[col].isnull()]) == 0, f'{col}, {len(results[results[col].isnull()])}'
+            cols = ['proj_x1', 'proj_x2']
             results.to_json(self.run_dir / f'results_{split}.json', orient='records')
-            # embeds.to_json(self.run_dir / f'embeddings_{split}.json', orient='records')
 
         return self
+
+    def _stratified_sample_latents(self, ids: List[int], targets: List[int], latents: List[th.Tensor]) -> Tuple[
+        np.ndarray, np.ndarray]:
+        latents = [latent.cpu().numpy() for latent in latents]
+        latents = [row for batch in latents for row in batch]
+        df = pd.DataFrame(zip(ids, targets, latents), columns=['ids', 'targets', 'latents'])
+
+        samples = []
+        for target in df.targets.unique():
+            sample = df[df.targets == target][0:ct.TSNE_SAMPLE_SIZE]
+            samples.append(sample)
+        sample = pd.concat(samples, axis=0, verify_integrity=True, copy=False)
+
+        return sample.ids.values, np.array([latent for latent in sample.latents])
 
     def start(self):
         """Evaluates and stores result of a model."""

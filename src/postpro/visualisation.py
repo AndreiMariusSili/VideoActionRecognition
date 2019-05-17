@@ -162,18 +162,41 @@ class Visualisation(object):
         lkwargs = {
             'line_width': 3
         }
-        ys = list(zip(['train_loss', 'valid_loss'], ['Train Loss', 'Valid Loss']))
-        loss_plot = self.__create_line_plot('Loss Over Epochs', 'Loss', 'epoch', ys, fkwargs, lkwargs)
-        fkwargs['y_range'] = (0, 1)
-        ys = list(zip(['train_acc@1', 'valid_acc@1'], ['Train Acc@1', 'Valid Acc@1']))
-        top1_plot = self.__create_line_plot('Accuracy@1 Over Epochs', 'Acc@1', 'epoch', ys, fkwargs, lkwargs)
-        ys = list(zip(['train_acc@2', 'valid_acc@2'], ['Train Acc@2', 'Valid Acc@2']))
-        top2_plot = self.__create_line_plot('Accuracy@2 Over Epochs', 'Acc@2', 'epoch', ys, fkwargs, lkwargs)
-        ys = list(zip(['train_diff', 'valid_diff'], ['Train Acc Diff', 'Valid Acc Diff']))
-        diff_plot = self.__create_line_plot('Accuracy@2 - Accuracy@1 Over Epochs', 'Acc Diff', 'epoch', ys,
-                                            fkwargs, lkwargs)
+        if self.run_opts.mode == 'discriminative':
+            ys = list(zip(['train_loss', 'valid_loss'], ['Train Loss', 'Valid Loss']))
+            loss_plot = self.__create_line_plot('Loss Over Epochs', 'Loss', 'epoch', ys, fkwargs, lkwargs)
+            fkwargs['y_range'] = (0, 1)
+            ys = list(zip(['train_acc@1', 'valid_acc@1'], ['Train Acc@1', 'Valid Acc@1']))
+            top1_plot = self.__create_line_plot('Accuracy@1 Over Epochs', 'Acc@1', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_acc@2', 'valid_acc@2'], ['Train Acc@2', 'Valid Acc@2']))
+            top2_plot = self.__create_line_plot('Accuracy@2 Over Epochs', 'Acc@2', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_diff', 'valid_diff'], ['Train Acc Diff', 'Valid Acc Diff']))
+            fkwargs['y_range'] = (-1, 1)
+            diff_plot = self.__create_line_plot('Accuracy@2 - Accuracy@1 Over Epochs', 'Acc Diff', 'epoch', ys,
+                                                fkwargs, lkwargs)
+            grid = bol.gridplot([[top1_plot, top2_plot], [loss_plot, diff_plot]], sizing_mode='scale_width')
+        else:
+            ys = list(zip(['train_mse_loss', 'valid_mse_loss'], ['Train MSE Loss', 'Valid MSE Loss']))
+            mse_loss_plot = self.__create_line_plot('MSE Loss Over Epochs', 'MSE Loss', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_ce_loss', 'valid_ce_loss'], ['Train CE Loss', 'Valid CE Loss']))
+            ce_loss_plot = self.__create_line_plot('CE Loss Over Epochs', 'CE Loss', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_kld_loss', 'valid_kld_loss'], ['Train KLD Loss', 'Valid KLD Loss']))
+            kld_loss_plot = self.__create_line_plot('KLD Loss Over Epochs', 'KLD Loss', 'epoch', ys, fkwargs, lkwargs)
+            fkwargs['y_range'] = (0, 1)
+            ys = list(zip(['train_acc@1', 'valid_acc@1'], ['Train Acc@1', 'Valid Acc@1']))
+            top1_plot = self.__create_line_plot('Accuracy@1 Over Epochs', 'Acc@1', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_acc@2', 'valid_acc@2'], ['Train Acc@2', 'Valid Acc@2']))
+            top2_plot = self.__create_line_plot('Accuracy@2 Over Epochs', 'Acc@2', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_diff', 'valid_diff'], ['Train Acc Diff', 'Valid Acc Diff']))
+            fkwargs['y_range'] = (-1, 1)
+            diff_plot = self.__create_line_plot('Accuracy@2 - Accuracy@1 Over Epochs', 'Acc Diff', 'epoch', ys,
+                                                fkwargs, lkwargs)
+            grid = bol.gridplot([
+                [top1_plot, top2_plot],
+                [mse_loss_plot, ce_loss_plot],
+                [kld_loss_plot, diff_plot]
+            ], sizing_mode='scale_width')
 
-        grid = bol.gridplot([[top1_plot, top2_plot], [loss_plot, diff_plot]], sizing_mode='scale_width')
         self.doc.add_root(grid)
 
     def _start_results_page(self):
@@ -267,9 +290,16 @@ class Visualisation(object):
         fig = bop.figure(title='Train Embeddings Projection', tooltips=tooltips, tools=tools)
         for i, template in enumerate(self.train_results.template.unique()):
             # noinspection PyUnresolvedReferences
-            source = bom.ColumnDataSource(train_embeddings[train_embeddings['template'] == template])
-            glyph = fig.circle('proj_x1', 'proj_x2', source=source, fill_color=pal.Viridis256[i], line_color=None)
+            df = train_embeddings[train_embeddings['template'] == template]
+            df = df[df.proj_x1.notnull() & df.proj_x2.notnull()]
+            source = bom.ColumnDataSource(df)
+            glyph = fig.circle('proj_x1', 'proj_x2', source=source, size=10,
+                               fill_color=pal.Category20_20[i],
+                               line_color=None)
             legend_items.append((template, [glyph]))
+
+            if i == 19:
+                break
         legend = bom.Legend(items=legend_items, location='center')
         fig.add_layout(legend, 'right')
         self.train_embeddings_figure = fig
@@ -279,8 +309,13 @@ class Visualisation(object):
         for i, template in enumerate(self.valid_results.template.unique()):
             # noinspection PyUnresolvedReferences
             source = bom.ColumnDataSource(valid_embeddings[valid_embeddings['template'] == template])
-            glyph = fig.circle('proj_x1', 'proj_x2', source=source, fill_color=pal.Viridis256[i], line_color=None)
+            glyph = fig.circle('proj_x1', 'proj_x2', source=source, size=10,
+                               fill_color=pal.Category20_20[i],
+                               line_color=None)
             legend_items.append((template, [glyph]))
+
+            if i == 19:
+                break
         legend = bom.Legend(items=legend_items, location='center')
         fig.add_layout(legend, 'right')
         self.valid_embeddings_figure = fig
@@ -513,8 +548,7 @@ class Visualisation(object):
         """Create a line plot with hover tool from a stats DataFrame."""
         hover = bom.HoverTool(tooltips=[
             ('Epoch', '@epoch{0,}'),
-            (f'Train {tip}', '@$name{0.0000}'),
-            (f'Valid {tip}', '@$name{0.0000}'),
+            (f'{tip}', '@$name{0.0000}'),
         ], mode='vline')
         plot = bop.figure(title=title, tools=[hover, 'box_zoom', 'wheel_zoom', 'pan', 'reset'], **fkwargs)
         for i, (y, leg) in enumerate(ys):

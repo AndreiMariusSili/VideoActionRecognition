@@ -1,5 +1,5 @@
 import os
-from typing import List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch as th
@@ -19,6 +19,7 @@ class SmthDataset(thd.Dataset):
     do: pipe.DataOptions
     so: pipe.SamplingOptions
     transform: pipe.VideoCompose
+    cache: Optional[Dict[int, Tuple[pipe.Video, pipe.Label]]]
 
     def __init__(self, data_opts: pipe.DataOptions, sampling_opts: pipe.SamplingOptions):
         """Initialize a smth-smth dataset from the DataFrame containing meta information."""
@@ -34,7 +35,8 @@ class SmthDataset(thd.Dataset):
         self.meta = hp.read_smth_meta(data_opts.meta_path)
 
         if data_opts.keep is not None:
-            self.meta = self.meta[0:data_opts.keep]
+            self.meta = self.meta.iloc[0:data_opts.keep]
+            self.cache = {}
         self.transform = data_opts.transform
 
     def __getitem__(self, item: int) -> LOADED_ITEM:
@@ -45,6 +47,17 @@ class SmthDataset(thd.Dataset):
             label = pipe.Label(video_meta)
             video.data = pipe.CenterCrop(224)(video.data)
         else:
+            if self.do.keep is not None:
+                try:
+                    return self.cache[item]
+                except KeyError:
+                    video = pipe.Video(video_meta, self.do.cut, self.do.setting, self.so.num_segments,
+                                       self.so.segment_size)
+                    label = pipe.Label(video_meta)
+                    video.data = self.transform(video.data)
+                    self.cache[item] = (video, label)
+                    return self.cache[item]
+
             video = pipe.Video(video_meta, self.do.cut, self.do.setting, self.so.num_segments, self.so.segment_size)
             label = pipe.Label(video_meta)
             video.data = self.transform(video.data)
@@ -114,7 +127,7 @@ class SmthDataset(thd.Dataset):
         return ml, mh, mw
 
 
-if __name__ == '__main__':
+def setup():
     os.chdir('/Users/Play/Code/AI/master-thesis/src/')
     base_transform = pipe.VideoCompose([
         pipe.RandomCrop(224),
@@ -124,18 +137,22 @@ if __name__ == '__main__':
     ])
     _data_opts = pipe.DataOptions(
         meta_path=ct.SMTH_META_TRAIN,
-        cut=1.0,
-        setting='train',
+        cut=0.5,
+        setting='valid',
         transform=base_transform,
     )
     _sampling_opts = pipe.SamplingOptions(
         num_segments=4,
-        segment_size=2
+        segment_size=1
     )
     dataset = SmthDataset(_data_opts, _sampling_opts)
 
-    x, y = dataset[0]
-    b = dataset.get_batch(10)
+    return dataset
 
-    for i in range(len(dataset)):
-        x, y = dataset[i]
+
+if __name__ == '__main__':
+    import timeit
+
+    print(timeit.timeit("dataset[0]", setup="from __main__ import setup; dataset=setup()", number=10))
+
+    b = setup().get_batch(10)

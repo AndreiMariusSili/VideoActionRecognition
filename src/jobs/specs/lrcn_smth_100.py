@@ -24,17 +24,17 @@ train_do = pipe.DataOptions(
 )
 train_so = pipe.SamplingOptions(
     num_segments=4,
-    segment_size=4
+    segment_size=1
 )
 train_ds_opts = pipe.DataSetOptions(
     do=train_do,
     so=train_so
 )
 train_dl_opts = pipe.DataLoaderOptions(
-    batch_size=8,
+    batch_size=128,
     shuffle=True,
     num_workers=os.cpu_count(),
-    pin_memory=True,
+    pin_memory=False,
     drop_last=False
 )
 ########################################################################################################################
@@ -47,17 +47,17 @@ valid_do = pipe.DataOptions(
 )
 valid_so = pipe.SamplingOptions(
     num_segments=4,
-    segment_size=4
+    segment_size=1
 )
 valid_ds_opts = pipe.DataSetOptions(
     do=valid_do,
     so=valid_so
 )
 valid_dl_opts = pipe.DataLoaderOptions(
-    batch_size=8,
+    batch_size=128,
     shuffle=False,
     num_workers=os.cpu_count(),
-    pin_memory=True,
+    pin_memory=False,
     drop_last=False
 )
 ########################################################################################################################
@@ -79,20 +79,20 @@ trainer_opts = options.TrainerOptions(
 )
 evaluator_opts = options.EvaluatorOptions(
     metrics={
-        'acc@1': metrics.Accuracy(),
-        'acc@3': metrics.TopKCategoricalAccuracy(k=3),
-        'loss': metrics.Loss(nn.CrossEntropyLoss())
+        'acc@1': metrics.Accuracy(output_transform=lambda tpl: tpl[0:2]),
+        'acc@2': metrics.TopKCategoricalAccuracy(k=2, output_transform=lambda tpl: tpl[0:2]),
+        'loss': metrics.Loss(nn.CrossEntropyLoss(), output_transform=lambda tpl: tpl[0:2])
     }
 )
 ########################################################################################################################
 # RUN
 ########################################################################################################################
 lrcn_smth_100 = options.RunOptions(
-    name=f'lrcn_smth_100',
+    name='lrcn_smth_100',
     mode='discriminative',
     resume=False,
     log_interval=10,
-    patience=5,
+    patience=10,
     model=lrcn.LRCN,
     model_opts=model_opts,
     data_bunch=pipe.SmthDataBunch,

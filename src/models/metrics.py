@@ -1,3 +1,4 @@
+import numpy as np
 import torch as th
 from ignite.exceptions import NotComputableError
 from ignite.metrics.metric import Metric
@@ -103,7 +104,9 @@ class VAEAccuracyAt2(_VAEBaseClassification):
 
     def prepare(self, output):
         _ml_recon, _ml_pred, _mean, _log_var, _var_preds, _in, _target = output
-        batch_size, num_samples, num_classes = _var_preds.shape
+        batch_size = _target.shape[0]
+        num_preds, num_classes = _var_preds.shape
+        num_samples = num_preds // batch_size
         _target = _target.view(-1, 1).repeat(1, num_samples).view(-1)
         _var_preds = _var_preds.view(batch_size * num_samples, num_classes)
 
@@ -149,19 +152,24 @@ class VAELoss(Metric):
 
     def prepare(self, output):
         _ml_recon, _ml_pred, _mean, _log_var, _var_preds, _in, _target = output
-        batch_size, num_samples, num_classes = _var_preds.shape
-        _var_preds = _var_preds[0:batch_size, 0:num_samples:num_samples, 0:num_classes].view(batch_size, num_classes)
+        batch_size = _target.shape[0]
+        num_preds, num_classes = _var_preds.shape
+        num_samples = num_preds // batch_size
+        _var_preds = _var_preds[0:num_preds:num_samples, 0:num_classes].view(batch_size, num_classes)
 
         return _ml_recon, _ml_pred, _mean, _log_var, _var_preds, _in, _target
 
     def update(self, output):
-        _ml_recon, _ml_pred, _mean, _log_var, _var_preds, _in, _target = self.prepare(output)
-        average_loss = self._loss_fn(_ml_recon, _var_preds, _in, _target, _mean, _log_var)[self.take]
+        _ml_recon, _ml_pred, _mean, _log_var, _var_pred, _in, _target = self.prepare(output)
+        if self.take > -1:
+            average_loss = self._loss_fn(_ml_recon, _ml_pred, _in, _target, _mean, _log_var)[self.take]
+        else:
+            average_loss = np.sum(self._loss_fn(_ml_recon, _ml_pred, _in, _target, _mean, _log_var))
 
         if len(average_loss.shape) != 0:
             raise ValueError('loss_fn did not return the average loss')
 
-        N = self._batch_size(_ml_recon)
+        N = self._batch_size(_target)
         self._sum += average_loss.item() * N
         self._num_examples += N
 
@@ -176,6 +184,7 @@ if __name__ == '__main__':
     acc1 = VAEAccuracyAt1()
     acc2 = VAEAccuracyAt2()
 
+    _input = th.randn((2, 4, 3, 224, 224), dtype=th.float)
     ml_recon = th.randn((2, 4, 3, 224, 224), dtype=th.float)
     ml_pred = th.rand((3, 10), dtype=th.float)
     ml_pred[0, 0] = 1.00
@@ -192,8 +201,8 @@ if __name__ == '__main__':
     mean = th.randn((3, 1024), dtype=th.float)
     log_var = th.randn((3, 1024), dtype=th.float)
 
-    acc1.update((ml_recon, ml_pred, mean, log_var, var_preds, target))
+    acc1.update((ml_recon, ml_pred, mean, log_var, var_preds, _input, target))
     print(acc1.compute())
 
-    acc2.update((ml_recon, ml_pred, mean, log_var, var_preds, target))
+    acc2.update((ml_recon, ml_pred, mean, log_var, var_preds, _input, target))
     print(acc2.compute())

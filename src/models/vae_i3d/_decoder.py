@@ -79,5 +79,5 @@ if __name__ == '__main__':
     os.chdir('/Users/Play/Code/AI/master-thesis/src')
     decoder = I3DDecoder(1024)
     print(decoder)
-    _in = th.randn((1, 1024, 1, 1, 1), dtype=th.float)
-    _out = decoder(_in)
+    __in = th.randn((1, 1024, 1, 1, 1), dtype=th.float)
+    _out = decoder(__in)

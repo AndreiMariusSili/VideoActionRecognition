@@ -1,10 +1,11 @@
-from torch import nn
+from typing import Tuple
+
 import torch as th
-import math
+from torch import nn
 
 from models.tadn._inception3 import InceptionBase
 
-INC_OUT_C, INC_OUT_H, INC_OUT_W = 256, 8, 8
+INC_OUT_C, INC_OUT_H, INC_OUT_W = 2048, 5, 5
 
 
 class DenseLayer(nn.Module):
@@ -13,7 +14,7 @@ class DenseLayer(nn.Module):
     n_input_plane: int
     drop_rate: int
 
-    sequential: nn.Sequential
+    _sequential: nn.Sequential
 
     def __init__(self, n_channels: int, step: int, growth_rate: int, n_input_plane: int, drop_rate: float):
         super(DenseLayer, self).__init__()
@@ -22,21 +23,26 @@ class DenseLayer(nn.Module):
         self.n_input_plane = n_input_plane
         self.growth_rate = growth_rate
 
-        self.sequential = nn.Sequential(
+        self._sequential = nn.Sequential(
             nn.BatchNorm2d(n_channels),
             nn.ReLU(inplace=True),
             nn.Conv2d(n_channels, growth_rate, kernel_size=3, stride=1, padding=1, bias=False),
             nn.Dropout(p=drop_rate)
         )
 
-    def forward(self, _in: th.Tensor) -> th.Tensor:
-        _out = self.sequential(_in)
+    def _cat(self, _in: th.Tensor, _prev: th.Tensor) -> th.Tensor:
+        _out = _in
+        if _prev is not None:
+            _out = th.cat((_in, _prev), dim=1)  # cat across channels
+        return _out
+
+    def forward(self, _in: th.Tensor, _prev) -> th.Tensor:
+        _out = self._cat(_in, _prev)
+        _out = self._sequential(_out)
 
         if self.step > 0:
-            # slice x from n_input_plane until end
-            _out_prev = _in.narrow(1, self.n_input_plane, self.step * self.growth_rate)
             # concatenate outputs of other time-steps
-            _out = th.cat((_out_prev, _out), dim=1)
+            _out = th.cat((_prev, _out), dim=1)
         return _out
 
 
@@ -68,6 +74,8 @@ class TimeAlignedDenseNet(nn.Module):
         self.aggregation = self._init_aggregation()
         self.classifier = self._init_classifier()
 
+        self._he_init()
+
     def _init_spatial(self) -> nn.Sequential:
         return InceptionBase()
 
@@ -76,15 +84,6 @@ class TimeAlignedDenseNet(nn.Module):
         n_channels = self.n_input_plane
         for step in range(self.time_steps):
             layer = DenseLayer(n_channels, step, self.growth_rate, self.n_input_plane, self.drop_rate)
-            for module in layer.modules():
-                if isinstance(module, nn.Conv2d):
-                    n = module.kernel_size[0] * module.kernel_size[1] * module.out_channels
-                    module.weight.data.normal_(0, math.sqrt(2. / n))
-                    if module.bias is not None:
-                        module.bias.data.zero_()
-                elif isinstance(module, nn.BatchNorm2d):
-                    module.weight.data.fill_(1)
-                    module.bias.data.zero_()
             n_channels = self.n_input_plane + (step + 1) * self.growth_rate
 
             temporal_features.append(layer)
@@ -93,7 +92,7 @@ class TimeAlignedDenseNet(nn.Module):
 
     def _init_classifier(self) -> nn.Sequential:
         return nn.Sequential(
-            nn.Linear(1024, self.num_classes),
+            nn.Conv2d(1024, self.num_classes, kernel_size=1, bias=False),
         )
 
     def _init_aggregation(self) -> nn.Sequential:
@@ -107,10 +106,20 @@ class TimeAlignedDenseNet(nn.Module):
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(1024, 1e-3),
             nn.Dropout(0.5),
-            nn.AvgPool2d(kernel_size=13)
+            nn.AdaptiveAvgPool2d((1, 1))
         )
 
-    def forward(self, _in: th.Tensor) -> th.Tensor:
+    def _he_init(self):
+        for module in self.modules():
+            if isinstance(module, nn.Conv2d):
+                th.nn.init.xavier_normal_(module.weight)
+                if module.bias is not None:
+                    module.bias.data.zero_()
+            elif isinstance(module, nn.BatchNorm2d):
+                module.weight.data.fill_(1)
+                module.bias.data.zero_()
+
+    def forward(self, _in: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
         bs, t, c, h, w = _in.shape
         _in = self.spatial(_in.view((bs * t, c, h, w))).view((bs, t, INC_OUT_C, INC_OUT_H, INC_OUT_W))
 
@@ -118,22 +127,20 @@ class TimeAlignedDenseNet(nn.Module):
         _out = None
         for t in range(self.time_steps):
             _in_t = _in[:, t, :, :, :]
-            if _in_prev is not None:
-                _in_t = th.cat((_in_t, _in_prev), dim=1)  # cat across channels
-            _out = self.temporal[t](_in_t)
+            _out = self.temporal[t](_in_t, _in_prev)
             _in_prev = _out
-        _out = self.aggregation(_out)
-        _out = self.classifier(_out.view(_out.size(0), -1))
+        _embeds = self.aggregation(_out)
+        _out = self.classifier(_embeds)
 
-        return _out
+        return _out.view(bs, self.num_classes), _embeds.view(bs, -1)
 
 
 if __name__ == "__main__":
     _batch_size = 2
-    _time_steps = 16
+    _time_steps = 4
     _num_class = 10
-    _growth_rate = 12
+    _growth_rate = 64
     _input_var = th.randn(_batch_size, _time_steps, 3, 224, 224)
     model = TimeAlignedDenseNet(_time_steps, _growth_rate, 0, _num_class)
-    output = model(_input_var)
-    print(output.size())
+    output, embeds = model(_input_var)
+    print(output.shape, embeds.shape)

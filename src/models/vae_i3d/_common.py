@@ -5,8 +5,8 @@ import torch as th
 from torch import nn
 from torch.nn import functional
 
-from . import _helpers as hp
-from .. import options as mo
+from models import options as mo
+from models.vae_i3d import _helpers as hp
 
 
 class Unit3D(nn.Module):
@@ -146,8 +146,15 @@ class Unflatten(nn.Module):
         self.num_channels = num_channels
 
     def forward(self, _in: th.Tensor):
-        bs = _in.shape[0]
-        return _in.view((bs, self.num_channels, 1, 1, 1))
+        if len(_in.shape) == 3:
+            bs, num_samples, latent_size = _in.shape
+        elif len(_in.shape) == 2:
+            bs, latent_size = _in.shape
+            num_samples = 1
+        else:
+            raise ValueError(f'Wrong input dimensions: {_in.shape}')
+
+        return _in.view((bs * num_samples, self.num_channels, 1, 1, 1))
 
 
 class ReparameterizedSample(nn.Module):
@@ -158,9 +165,30 @@ class ReparameterizedSample(nn.Module):
 
         self.latent_size = latent_size
 
-    def forward(self, mean: th.Tensor, log_var: th.Tensor):
+    def forward(self, mean: th.Tensor, log_var: th.Tensor, num_samples: int):
         bs = mean.shape[0]
-        std = th.exp(th.tensor(0.5) * log_var)
-        eps = th.randn((bs, self.latent_size))
+        device = mean.device
 
-        return eps * std + mean
+        std = th.exp(th.tensor(0.5, device=device) * log_var)
+        eps = th.randn((num_samples, bs, self.latent_size), device=device)
+        z = eps * std + mean
+
+        return z.transpose(0, 1).contiguous()
+
+
+if __name__ == '__main__':
+    import os
+
+    os.chdir('/Users/Play/Code/AI/master-thesis/src')
+
+    rsample = ReparameterizedSample(3)
+    _mean = th.tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0]
+    ])
+    _log_var = th.tensor([
+        [1.0, 2.0, 3.0],
+        [1.0, 2.0, 3.0]
+    ])
+
+    print(rsample(_mean, _log_var, 3))

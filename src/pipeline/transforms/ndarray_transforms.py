@@ -1,6 +1,7 @@
-from typing import Tuple
-import numpy as np
 import abc
+from typing import Tuple
+
+import numpy as np
 
 __all__ = ['ArrayTransform', 'ArrayNormalize', 'ArrayStandardize', 'FramePad', 'VideoPad']
 
@@ -16,7 +17,7 @@ class ArrayTransform(abc.ABC):
 
 class ArrayNormalize(ArrayTransform):
     """Normalize a np.ndarray video to [0.0, 1.0] range"""
-    by: int
+    by: np.ndarray
 
     def __init__(self, by: int):
         self.by = np.array(by, dtype=np.float32)

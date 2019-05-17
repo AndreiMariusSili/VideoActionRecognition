@@ -12,7 +12,7 @@ from models import options, tadn
 ########################################################################################################################
 data_bunch_opts = pipe.DataBunchOptions(
     shape='volume',
-    frame_size=299
+    frame_size=224
 )
 ########################################################################################################################
 # TRAIN DATA
@@ -21,17 +21,18 @@ train_do = pipe.DataOptions(
     meta_path=ct.SMTH_META_TRAIN,
     cut=1.0,
     setting='train',
+    keep=64
 )
 train_so = pipe.SamplingOptions(
     num_segments=4,
-    segment_size=4
+    segment_size=1
 )
 train_data_set_opts = pipe.DataSetOptions(
     do=train_do,
     so=train_so
 )
 train_data_loader_opts = pipe.DataLoaderOptions(
-    batch_size=8,
+    batch_size=64,
     shuffle=True,
     num_workers=os.cpu_count(),
     pin_memory=True,
@@ -41,20 +42,21 @@ train_data_loader_opts = pipe.DataLoaderOptions(
 # VALID DATA
 ########################################################################################################################
 valid_do = pipe.DataOptions(
-    meta_path=ct.SMTH_META_VALID,
+    meta_path=ct.SMTH_META_TRAIN,
     cut=1.0,
     setting='valid',
+    keep=64
 )
 valid_so = pipe.SamplingOptions(
     num_segments=4,
-    segment_size=4
+    segment_size=1
 )
 valid_data_set_opts = pipe.DataSetOptions(
     do=valid_do,
     so=valid_so
 )
 valid_data_loader_opts = pipe.DataLoaderOptions(
-    batch_size=8,
+    batch_size=64,
     shuffle=False,
     num_workers=os.cpu_count(),
     pin_memory=True,
@@ -65,24 +67,24 @@ valid_data_loader_opts = pipe.DataLoaderOptions(
 ########################################################################################################################
 model_opts = options.TADNOptions(
     num_classes=ct.SMTH_NUM_CLASSES,
-    time_steps=16,
-    growth_rate=3,
+    time_steps=4,
+    growth_rate=64,
     drop_rate=0.5,
 )
 optimizer_opts = options.AdamOptimizerOptions(
     lr=0.001
 )
 trainer_opts = options.TrainerOptions(
-    epochs=100,
+    epochs=30,
     optimizer=optim.Adam,
     optimizer_opts=optimizer_opts,
     criterion=nn.CrossEntropyLoss
 )
 evaluator_opts = options.EvaluatorOptions(
     metrics={
-        'acc@1': metrics.Accuracy(),
-        'acc@2': metrics.TopKCategoricalAccuracy(k=2),
-        'loss': metrics.Loss(nn.CrossEntropyLoss())
+        'acc@1': metrics.Accuracy(output_transform=lambda tpl: tpl[0:2]),
+        'acc@2': metrics.TopKCategoricalAccuracy(k=2, output_transform=lambda tpl: tpl[0:2]),
+        'loss': metrics.Loss(nn.CrossEntropyLoss(), output_transform=lambda tpl: tpl[0:2])
     }
 )
 ########################################################################################################################
@@ -93,7 +95,7 @@ dev_tadn_smth = options.RunOptions(
     mode='discriminative',
     resume=False,
     log_interval=1,
-    patience=5,
+    patience=10,
     model=tadn.TimeAlignedDenseNet,
     model_opts=model_opts,
     data_bunch=pipe.SmthDataBunch,

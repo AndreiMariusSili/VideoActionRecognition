@@ -1,9 +1,12 @@
-import bokeh.plotting as bop
-import bokeh.models as bom
-from typing import List, Optional
 from glob import glob
-from PIL import Image
+from typing import List, Optional
+
+import bokeh.models as bom
+import bokeh.plotting as bop
 import numpy as np
+from PIL import Image
+from skvideo import io
+from torch import cuda
 
 from pipeline import video_meta
 
@@ -14,7 +17,7 @@ class Video(object):
     setting: str
     num_segments: int
     segment_sample_size: int
-    paths: List[str]
+    indices: np.ndarray
     data: List[Image.Image]
 
     def __init__(self, meta: video_meta.VideoMeta, cut: float, setting: str,
@@ -29,47 +32,77 @@ class Video(object):
         self.setting = setting
         self.num_segments = num_segments
         self.segment_sample_size = segment_sample_size
-        self.paths = self.__get_frame_paths()
-        self.data = self.__get_frame_data()
-
-    def __get_frame_paths(self):
-        """Get a cut of the entire video."""
-        all_frame_paths = np.array(sorted(glob(f'{self.meta.jpeg_path}/*.jpeg')))
-        cut_frame_paths = all_frame_paths[0:self.cut]
 
         if self.num_segments is not None:
-            if self.setting == 'train':
-                cut_frame_paths = self.__random_sample_segments(cut_frame_paths)
-            else:
-                cut_frame_paths = self.__fixed_sample_segments(cut_frame_paths)
+            msg = f'Expected num_segments ({self.num_segments}) to be smaller or equal to cut ({self.cut}).'
+            assert self.num_segments <= self.cut, msg
 
-        return cut_frame_paths
+        self.indices = self.__get_frame_indices()
+        self.data = self.__get_frame_data()
 
-    def __random_sample_segments(self, cut_frame_paths: np.ndarray):
+    def __get_frame_indices(self):
+        """Get a cut of the entire video."""
+        if cuda.is_available():
+            all_frame_paths = np.array(sorted(glob(f'{self.meta.jpeg_path}/*.jpeg')))
+            cut_frame_paths = all_frame_paths[0:self.cut]
+
+            if self.num_segments is not None:
+                if self.setting == 'train':
+                    cut_frame_paths = self.__random_sample_segments(cut_frame_paths)
+                else:
+                    cut_frame_paths = self.__fixed_sample_segments(cut_frame_paths)
+
+            return cut_frame_paths
+        else:
+            all_frame_indices = np.arange(self.meta.length, dtype=np.int)
+            cut_frame_indices = all_frame_indices[0:self.cut]
+            if self.num_segments is not None:
+                if self.setting == 'train':
+                    cut_frame_indices = self.__random_sample_segments(cut_frame_indices)
+                else:
+                    cut_frame_indices = self.__fixed_sample_segments(cut_frame_indices)
+
+            return cut_frame_indices
+
+    def __random_sample_segments(self, cut_frame_indices: np.ndarray):
         """Split the video into segments and uniformly random sample from each segment. If the segment is smaller than
         the sample size, sample with replacement to duplicate some frames."""
-        segments = np.array_split(cut_frame_paths, self.num_segments)
-        segments = [segment for segment in segments if segment.size > 0]
-        sample = []
-        for segment in segments:
-            try:
-                sample.append(np.sort(np.random.choice(segment, self.segment_sample_size, replace=False)))
-            except ValueError:
-                sample.append(np.sort(np.random.choice(segment, self.segment_sample_size, replace=True)))
+        if cuda.is_available():
+            segments = np.array_split(cut_frame_indices, self.num_segments)
+            segments = [segment for segment in segments if segment.size > 0]
+            sample = []
+            for segment in segments:
+                try:
+                    sample.append(np.sort(np.random.choice(segment, self.segment_sample_size, replace=False)))
+                except ValueError:
+                    sample.append(np.sort(np.random.choice(segment, self.segment_sample_size, replace=True)))
 
-        return np.array(sample).reshape(-1)
+            return np.array(sample).reshape(-1)
+        else:
+            segments = np.array_split(cut_frame_indices, self.num_segments)
+            sample = []
+            for segment in segments:
+                try:
+                    sample.append(np.sort(np.random.choice(segment, self.segment_sample_size, replace=False)))
+                except ValueError:
+                    sample.append(np.sort(np.random.choice(segment, self.segment_sample_size, replace=True)))
+            return np.array(sample).reshape(-1)
 
     def __fixed_sample_segments(self, cut_frame_paths: np.ndarray):
         """Sample frames at roughly equal intervals from the video.
         If the video is too short, some frames will be duplicated."""
         size = self.segment_sample_size * self.num_segments
         # self.cut -1 to prevent rounding leading to out of bounds index.
-        sample_indices = np.linspace(0, self.cut - 1, size, True).round().astype(np.uint8)
+        sample_indices = np.linspace(0, self.cut - 1, size, True).round().astype(np.int)
 
         return cut_frame_paths[sample_indices]
 
     def __get_frame_data(self):
-        return [Image.open(path) for path in self.paths]
+        if cuda.is_available():
+            return [Image.open(path) for path in self.indices]
+        else:
+            video = io.vread(self.meta.webm_path, num_frames=self.cut)
+            return [Image.fromarray(frame) for frame in video[self.indices]]
 
     def show(self, fig: bop.Figure, source: bom.ColumnDataSource) -> None:
         """Compile to a Bokeh animation object."""

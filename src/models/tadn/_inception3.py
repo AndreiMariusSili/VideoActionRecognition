@@ -1,7 +1,7 @@
-import torch.utils.model_zoo as model_zoo
-import torch.nn.functional as F
-import torchvision as thv
 import torch as th
+import torch.nn.functional as F
+import torch.utils.model_zoo as model_zoo
+import torchvision as thv
 
 MODEL_URL = 'https://download.pytorch.org/models/inception_v3_google-1a9a5a14.pth'
 
@@ -17,9 +17,7 @@ class InceptionBase(thv.models.Inception3):
         del self.AuxLogits
         del self.fc
 
-        self.Bottleneck = th.nn.Conv2d(2048, 256, kernel_size=1, stride=1, padding=0, dilation=1, groups=1, bias=True)
-
-    def forward(self, x):
+    def forward(self, x: th.Tensor):
         if self.transform_input:
             x_ch0: th.Tensor = th.unsqueeze(x[:, 0], 1) * (0.229 / 0.5) + (0.485 - 0.5) / 0.5
             x_ch1: th.Tensor = th.unsqueeze(x[:, 1], 1) * (0.224 / 0.5) + (0.456 - 0.5) / 0.5
@@ -62,6 +60,4 @@ class InceptionBase(thv.models.Inception3):
         # N x 2048 x 8 x 8
         x = self.Mixed_7c(x)
         # N x 2048 x 8 x 8
-        x = self.Bottleneck(x)
-        # N x 256 x 8 x 8
         return x

@@ -15,7 +15,7 @@ class I3DClassifier(nn.Module):
 
         self.latent_size = latent_size
         self.num_classes = num_classes
-        opts = mo.Unit3DOptions(in_channels=1024, out_channels=self.num_classes, kernel_size=(1, 1, 1),
+        opts = mo.Unit3DOptions(in_channels=latent_size, out_channels=self.num_classes, kernel_size=(1, 1, 1),
                                 activation='none', use_bias=True, use_bn=False)
         self.classifier = cm.Unit3D(opts)
 

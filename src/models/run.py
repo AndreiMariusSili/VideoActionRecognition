@@ -4,6 +4,7 @@ import math
 import os
 import pathlib as pl
 import traceback
+from copy import deepcopy
 from glob import glob
 from typing import Any, Dict, TextIO, Tuple, Union
 
@@ -172,9 +173,9 @@ class Run(object):
         opts.db_opts.distributed = self.world_size > 1
 
         # make sure batch and workers are distributed well across worlds.
-        opts.train_dl_opts.batch_size = opts.train_dl_opts.batch_size // self.world_size * ct.NUM_DEVICES
+        opts.train_dl_opts.batch_size = opts.train_dl_opts.batch_size // self.world_size
         opts.train_dl_opts.num_workers = opts.train_dl_opts.num_workers // self.world_size
-        opts.valid_dl_opts.batch_size = opts.valid_dl_opts.batch_size // self.world_size * ct.NUM_DEVICES
+        opts.valid_dl_opts.batch_size = opts.valid_dl_opts.batch_size // self.world_size
         opts.valid_dl_opts.num_workers = opts.valid_dl_opts.num_workers // self.world_size
 
         return opts.data_bunch(opts.db_opts,
@@ -187,12 +188,12 @@ class Run(object):
         """Initialize the trainer and evaluator engines."""
         if self.mode == 'discriminative':
             trainer = me.create_discriminative_trainer(self.model, self.optimizer, self.criterion, self.device, True)
-            train_evaluator = me.create_discriminative_evaluator(self.model, self.metrics, self.device, True)
-            valid_evaluator = me.create_discriminative_evaluator(self.model, self.metrics, self.device, True)
+            train_evaluator = me.create_discriminative_evaluator(self.model, deepcopy(self.metrics), self.device, True)
+            valid_evaluator = me.create_discriminative_evaluator(self.model, deepcopy(self.metrics), self.device, True)
         else:
             trainer = me.create_variational_trainer(self.model, self.optimizer, self.criterion, self.device, True)
-            train_evaluator = me.create_variational_evaluator(self.model, self.metrics, self.device, True)
-            valid_evaluator = me.create_variational_evaluator(self.model, self.metrics, self.device, True)
+            train_evaluator = me.create_variational_evaluator(self.model, deepcopy(self.metrics), self.device, True)
+            valid_evaluator = me.create_variational_evaluator(self.model, deepcopy(self.metrics), self.device, True)
 
         return trainer, train_evaluator, valid_evaluator
 

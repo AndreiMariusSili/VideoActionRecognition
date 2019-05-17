@@ -1,20 +1,18 @@
 import os
 
 from ignite import metrics
-from torch import cuda, nn, optim
+from torch import nn, optim
 
 import constants as ct
 import pipeline as pipe
 from models import options, tadn
-
-NUM_DEVICES = cuda.device_count() if cuda.device_count() > 0 else 1
 
 ########################################################################################################################
 # DATA BUNCH OPTIONS
 ########################################################################################################################
 db_opts = pipe.DataBunchOptions(
     shape='volume',
-    frame_size=299
+    frame_size=224
 )
 ########################################################################################################################
 # TRAIN DATA
@@ -26,16 +24,16 @@ train_do = pipe.DataOptions(
 )
 train_so = pipe.SamplingOptions(
     num_segments=4,
-    segment_size=4
+    segment_size=1
 )
 train_ds_opts = pipe.DataSetOptions(
     do=train_do,
     so=train_so
 )
 train_dl_opts = pipe.DataLoaderOptions(
-    batch_size=8,
+    batch_size=128,
     shuffle=True,
-    num_workers=os.cpu_count() // NUM_DEVICES,
+    num_workers=os.cpu_count(),
     pin_memory=True,
     drop_last=False
 )
@@ -49,16 +47,16 @@ valid_do = pipe.DataOptions(
 )
 valid_so = pipe.SamplingOptions(
     num_segments=4,
-    segment_size=4
+    segment_size=1
 )
 valid_ds_opts = pipe.DataSetOptions(
     do=valid_do,
     so=valid_so
 )
 valid_dl_opts = pipe.DataLoaderOptions(
-    batch_size=8,
+    batch_size=128,
     shuffle=False,
-    num_workers=os.cpu_count() // NUM_DEVICES,
+    num_workers=os.cpu_count(),
     pin_memory=True,
     drop_last=False
 )
@@ -67,8 +65,8 @@ valid_dl_opts = pipe.DataLoaderOptions(
 ########################################################################################################################
 model_opts = options.TADNOptions(
     num_classes=ct.SMTH_NUM_CLASSES,
-    time_steps=16,
-    growth_rate=3,
+    time_steps=4,
+    growth_rate=64,
     drop_rate=0.5,
 )
 optimizer_opts = options.AdamOptimizerOptions(
@@ -82,20 +80,20 @@ trainer_opts = options.TrainerOptions(
 )
 evaluator_opts = options.EvaluatorOptions(
     metrics={
-        'acc@1': metrics.Accuracy(),
-        'acc@2': metrics.TopKCategoricalAccuracy(k=2),
-        'loss': metrics.Loss(nn.CrossEntropyLoss())
+        'acc@1': metrics.Accuracy(output_transform=lambda tpl: tpl[0:2]),
+        'acc@2': metrics.TopKCategoricalAccuracy(k=2, output_transform=lambda tpl: tpl[0:2]),
+        'loss': metrics.Loss(nn.CrossEntropyLoss(), output_transform=lambda tpl: tpl[0:2])
     }
 )
 ########################################################################################################################
 # RUN
 ########################################################################################################################
 tadn_smth_100 = options.RunOptions(
-    name=f'tadn_smth_100',
+    name='tadn_smth_100',
     mode='discriminative',
     resume=False,
     log_interval=10,
-    patience=5,
+    patience=10,
     model=tadn.TimeAlignedDenseNet,
     model_opts=model_opts,
     data_bunch=pipe.SmthDataBunch,

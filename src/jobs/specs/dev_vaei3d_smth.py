@@ -23,7 +23,7 @@ train_do = pipe.DataOptions(
     meta_path=ct.SMTH_META_TRAIN,
     cut=1.0,
     setting='train',
-    keep=64
+    keep=128
 )
 train_so = pipe.SamplingOptions(
     num_segments=4,
@@ -34,9 +34,9 @@ train_ds_opts = pipe.DataSetOptions(
     so=train_so
 )
 train_dl_opts = pipe.DataLoaderOptions(
-    batch_size=32,
+    batch_size=128,
     shuffle=True,
-    num_workers=os.cpu_count() // NUM_DEVICES,
+    num_workers=os.cpu_count(),
     pin_memory=False,
     drop_last=False
 )
@@ -47,7 +47,7 @@ valid_do = pipe.DataOptions(
     meta_path=ct.SMTH_META_TRAIN,
     cut=1.0,
     setting='valid',
-    keep=64
+    keep=128
 )
 valid_so = pipe.SamplingOptions(
     num_segments=4,
@@ -58,7 +58,7 @@ valid_ds_opts = pipe.DataSetOptions(
     so=valid_so
 )
 valid_dl_opts = pipe.DataLoaderOptions(
-    batch_size=32,
+    batch_size=128,
     shuffle=False,
     num_workers=os.cpu_count(),
     pin_memory=False,
@@ -69,11 +69,11 @@ valid_dl_opts = pipe.DataLoaderOptions(
 ########################################################################################################################
 model_opts = options.VAEI3DOptions(
     latent_size=1024,
-    dropout_prob=0.0,
+    dropout_prob=0.5,
     num_classes=ct.SMTH_NUM_CLASSES
 )
 optimizer_opts = options.AdamOptimizerOptions(
-    lr=0.001
+    lr=0.01
 )
 trainer_opts = options.TrainerOptions(
     epochs=20,
@@ -81,8 +81,8 @@ trainer_opts = options.TrainerOptions(
     optimizer_opts=optimizer_opts,
     criterion=criterion.VAECriterion,
     criterion_opts=options.VAECriterionOptions(
-        mse_factor=1.0,
-        ce_factor=1.0
+        mse_factor=0.0,
+        ce_factor=128.0,
     )
 )
 evaluator_opts = options.EvaluatorOptions(
@@ -92,6 +92,7 @@ evaluator_opts = options.EvaluatorOptions(
         'mse_loss': custom_metrics.VAELoss(criterion.VAECriterion(**dc.asdict(trainer_opts.criterion_opts)), take=0),
         'ce_loss': custom_metrics.VAELoss(criterion.VAECriterion(**dc.asdict(trainer_opts.criterion_opts)), take=1),
         'kld_loss': custom_metrics.VAELoss(criterion.VAECriterion(**dc.asdict(trainer_opts.criterion_opts)), take=2),
+        'total_loss': custom_metrics.VAELoss(criterion.VAECriterion(**dc.asdict(trainer_opts.criterion_opts)), take=-1),
     }
 )
 ########################################################################################################################

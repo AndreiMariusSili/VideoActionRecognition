@@ -1,12 +1,12 @@
-import torchvision as thv
-from typing import Tuple
-from torch import nn
-from torch import optim
-import torch as th
 import os
+from typing import Tuple
 
-import pipeline as pipe
+import torch as th
+import torchvision as thv
+from torch import nn, optim
+
 import constants as ct
+import pipeline as pipe
 
 CONV_OUT_C, CONV_OUT_H, CONV_OUT_W = 512, 7, 7
 FUSION_IN = CONV_OUT_C * CONV_OUT_H * CONV_OUT_W
@@ -46,12 +46,12 @@ class LRCN(nn.Module):
         lstm_out, _ = self.lstm(fusion.view(bs, sl, LSTM_IN))
         _out = self.classifier(lstm_out)
 
-        return _out.mean(dim=1)
+        return _out.mean(dim=1), lstm_out.mean(dim=1)
 
     def __init_feature_extractor(self):
         """Initialize the VGG feature extractor part of the network.
             Use all conv layers. Freeze parameters depending on self.freeze_* properties."""
-        self.features = nn.Sequential(*list(thv.models.vgg11_bn(pretrained=True).features.children()))
+        self.features = nn.Sequential(*list(thv.models.vgg11_bn(pretrained=False).features.children()))
 
         if self.freeze_features:
             self.__freeze('features')
@@ -59,7 +59,7 @@ class LRCN(nn.Module):
     def __init_fusion(self):
         """Initialize the VGG feature fusion part of the network.
             Use all fc layers except the last one. Freeze parameters depending onn self.freeze_* properties."""
-        self.fusion = nn.Sequential(*list(thv.models.vgg11_bn(pretrained=True).classifier.children())[:-1])
+        self.fusion = nn.Sequential(*list(thv.models.vgg11_bn(pretrained=False).classifier.children())[:-1])
 
         if self.freeze_fusion:
             self.__freeze('fusion')

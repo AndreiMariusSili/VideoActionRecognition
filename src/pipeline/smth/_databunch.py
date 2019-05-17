@@ -2,6 +2,7 @@ import os
 from typing import List, Optional, Tuple
 
 import pandas as pd
+import torch as th
 from dataclasses import asdict
 from torch.utils import data as thd
 from tqdm import tqdm
@@ -47,8 +48,8 @@ class SmthDataBunch(object):
             pipe.RandomCrop(db_opts.frame_size),
             pipe.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05),
             pipe.ToVolumeArray(3, True) if self.db_opts.shape == 'volume' else pipe.ClipToStackedArray(3),
-            pipe.ArrayNormalize(255),
-            pipe.ArrayStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
+            # pipe.ArrayNormalize(255),
+            # pipe.ArrayStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
         ])
         train_ds_opts.do.transform = pipe.VideoCompose(train_tfms)
 
@@ -56,8 +57,8 @@ class SmthDataBunch(object):
         valid_tfms.extend([
             pipe.CenterCrop(db_opts.frame_size),
             pipe.ToVolumeArray() if self.db_opts.shape == 'volume' else pipe.ClipToStackedArray(3),
-            pipe.ArrayNormalize(255),
-            pipe.ArrayStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
+            # pipe.ArrayNormalize(255),
+            # pipe.ArrayStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
         ])
         valid_ds_opts.do.transform = pipe.VideoCompose(valid_tfms)
 
@@ -110,29 +111,29 @@ if __name__ == '__main__':
     _train_do = pipe.DataOptions(
         meta_path=ct.SMTH_META_TRAIN,
         cut=1.0,
-        setting='train',
+        setting='valid',
         transform=None,
-        keep=None
+        keep=2
     )
     _train_so = pipe.SamplingOptions(
         num_segments=4,
-        segment_size=4
+        segment_size=1
     )
     _train_dl_opts = pipe.DataLoaderOptions(
-        batch_size=16,
-        shuffle=True,
-        num_workers=os.cpu_count()
+        batch_size=2,
+        shuffle=False,
+        num_workers=0
     )
     _valid_do = pipe.DataOptions(
-        meta_path=ct.SMTH_META_VALID,
+        meta_path=ct.SMTH_META_TRAIN,
         cut=1.0,
         setting='valid',
         transform=None,
-        keep=None
+        keep=2
     )
     _valid_so = pipe.SamplingOptions(
         num_segments=4,
-        segment_size=4
+        segment_size=1
     )
     _train_ds_opts = pipe.DataSetOptions(
         do=_train_do,
@@ -143,13 +144,16 @@ if __name__ == '__main__':
         so=_valid_so
     )
     _valid_dl_opts = pipe.DataLoaderOptions(
-        batch_size=16,
-        shuffle=True,
-        num_workers=os.cpu_count()
+        batch_size=2,
+        shuffle=False,
+        num_workers=0
     )
     bunch = SmthDataBunch(_db_opts, _train_ds_opts, _valid_ds_opts, _train_dl_opts, _valid_dl_opts)
     print(bunch)
-    for i, _ in tqdm(enumerate(bunch.train_loader), total=len(bunch.train_loader)):
+    for i, (train_x, train_y) in tqdm(enumerate(bunch.train_loader), total=len(bunch.train_loader)):
         continue
-    for i, _ in tqdm(enumerate(bunch.valid_loader), total=len(bunch.valid_loader)):
+    for i, (valid_x, valid_y) in tqdm(enumerate(bunch.valid_loader), total=len(bunch.valid_loader)):
         continue
+    assert th.all(th.eq(train_x, valid_x))
+    assert th.all(th.eq(train_y, valid_y))
+    print('Everything is fine.')

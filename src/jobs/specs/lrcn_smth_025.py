@@ -5,7 +5,7 @@ from torch import nn, optim
 
 import constants as ct
 import pipeline as pipe
-from models import i3d, options
+from models import lrcn, options
 
 ########################################################################################################################
 # DATA BUNCH OPTIONS
@@ -34,7 +34,7 @@ train_dl_opts = pipe.DataLoaderOptions(
     batch_size=128,
     shuffle=True,
     num_workers=os.cpu_count(),
-    pin_memory=True,
+    pin_memory=False,
     drop_last=False
 )
 ########################################################################################################################
@@ -57,15 +57,16 @@ valid_dl_opts = pipe.DataLoaderOptions(
     batch_size=128,
     shuffle=False,
     num_workers=os.cpu_count(),
-    pin_memory=True,
+    pin_memory=False,
     drop_last=False
 )
 ########################################################################################################################
 # MODEL AND AUXILIARIES
 ########################################################################################################################
-model_opts = options.I3DOptions(
+model_opts = options.LRCNOptions(
     num_classes=ct.SMTH_NUM_CLASSES,
-    dropout_prob=0.5
+    freeze_features=False,
+    freeze_fusion=False
 )
 optimizer_opts = options.AdamOptimizerOptions(
     lr=0.001
@@ -86,13 +87,13 @@ evaluator_opts = options.EvaluatorOptions(
 ########################################################################################################################
 # RUN
 ########################################################################################################################
-i3d_smth_025 = options.RunOptions(
-    name='i3d_smth_025',
+lrcn_smth_025 = options.RunOptions(
+    name='lrcn_smth_025',
     mode='discriminative',
     resume=False,
     log_interval=10,
     patience=10,
-    model=i3d.I3D,
+    model=lrcn.LRCN,
     model_opts=model_opts,
     data_bunch=pipe.SmthDataBunch,
     db_opts=db_opts,

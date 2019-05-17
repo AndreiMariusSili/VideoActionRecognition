@@ -1,10 +1,10 @@
 # Based on implementation from https://github.com/hassony2/kinetics_i3d_pytorch
-from typing import Tuple, List, Any
-from torch import nn
+from typing import Any, List, Tuple
+
 import torch as th
+from torch import nn
 
 from models.i3d import _helpers as hp
-import constants as ct
 
 
 class Unit3D(nn.Module):
@@ -158,20 +158,33 @@ class I3D(nn.Module):
         self.mixed_5b = Mixed(832, [256, 160, 320, 32, 128, 128])
         self.mixed_5c = Mixed(832, [384, 192, 384, 48, 128, 128])
 
-        self.avg_pool = nn.AvgPool3d((2, 7, 7), (1, 1, 1))
+        self.avg_pool = nn.AdaptiveAvgPool3d((1, 1, 1))
         self.dropout = nn.Dropout(dropout_prob)
-        self.conv3d_0c_1x1 = Unit3D(in_channels=1024, out_channels=400, kernel_size=(1, 1, 1),
-                                    activation='none', use_bias=True, use_bn=False)
-        self.softmax = nn.Softmax(dim=1)
 
-        if ct.I3D_PT_RGB_CHECKPOINT.exists() and self.modality == 'rgb':
-            self.load_state_dict(th.load(ct.I3D_PT_RGB_CHECKPOINT))
-
+        # self.conv3d_0c_1x1 = Unit3D(in_channels=1024, out_channels=400, kernel_size=(1, 1, 1),
+        #                             activation='none', use_bias=True, use_bn=False)
+        # if ct.I3D_PT_RGB_CHECKPOINT.exists() and self.modality == 'rgb':
+        #     self.load_state_dict(th.load(ct.I3D_PT_RGB_CHECKPOINT))
         self.conv3d_0c_1x1 = Unit3D(in_channels=1024, out_channels=self.num_classes, kernel_size=(1, 1, 1),
                                     activation='none', use_bias=True, use_bn=False)
+        self._he_init()
+
+        self.softmax = nn.Softmax(dim=1)
+
+    def _he_init(self):
+        for module in self.modules():
+            if isinstance(module, nn.Conv3d):
+                th.nn.init.kaiming_normal_(module.weight, mode='fan_in', nonlinearity='relu')
+                if module.bias is not None:
+                    module.bias.data.zero_()
+            elif isinstance(module, nn.BatchNorm3d):
+                module.weight.data.fill_(1)
+                module.bias.data.zero_()
 
     def forward(self, _in: th.Tensor) -> th.tensor:
         _in = _in.transpose(1, 2)
+        bs = _in.shape[0]
+
         out = self.conv3d_1a_7x7(_in)
         out = self.maxPool3d_2a_3x3(out)
         out = self.conv3d_2b_1x1(out)
@@ -189,14 +202,15 @@ class I3D(nn.Module):
         out = self.mixed_5b(out)
         out = self.mixed_5c(out)
         out = self.avg_pool(out)
+        embeds = out.view(bs, -1)
+
         out = self.dropout(out)
         out = self.conv3d_0c_1x1(out)
         out = out.squeeze(3)
         out = out.squeeze(3)
         out = out.mean(2)
-        out_logits = out
 
-        return out_logits
+        return out, embeds
 
     def load_tf_weights(self, sess: Any) -> None:
         if self.modality not in ['rgb', 'flow']:

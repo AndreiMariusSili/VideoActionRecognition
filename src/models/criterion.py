@@ -8,10 +8,8 @@ class KLDivergence(nn.Module):
 
     def forward(self, mean: th.Tensor, log_var: th.Tensor):
         device = mean.device
-        latent_size = mean.shape[1]
 
-        kld = th.tensor(-0.5).to(device) * (th.tensor(1.0).to(device) + log_var - mean.pow(2) - log_var.exp()).sum()
-        kld = kld / latent_size
+        kld = th.tensor(-0.5).to(device) * (th.tensor(1.0).to(device) + log_var - mean.pow(2) - log_var.exp()).mean()
 
         return kld
 
