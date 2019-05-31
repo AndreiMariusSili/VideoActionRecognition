@@ -1,4 +1,5 @@
 import pathlib as pl
+import pathlib as pl
 import traceback
 from glob import glob
 from typing import Any, List, Tuple
@@ -14,7 +15,10 @@ import constants as ct
 import helpers as hp
 import models.options as mo
 from env import logging
-from pipeline import smth
+from pipeline import TensorNormalize, TensorStandardize, smth
+
+NORMALIZE = TensorNormalize(255)
+STANDARDIZE = TensorStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS)
 
 
 class Evaluation(object):
@@ -164,6 +168,9 @@ class Evaluation(object):
 
             for i, (video_data, video_labels, videos, labels) in enumerate(loader):
                 x = video_data.to(device=self.device, non_blocking=True)
+                x = NORMALIZE(x)
+                x = STANDARDIZE(x)
+
                 ids.extend([video.meta.id for video in videos])
                 targets.extend([label.data for label in labels])
 
@@ -194,7 +201,7 @@ class Evaluation(object):
         try:
             tsne = skm.TSNE()
             embed_projections = tsne.fit_transform(embeds)
-        except ValueError as e:
+        except ValueError:
             embed_projections = np.array([100, 100])
         results.loc[ids, ['proj_x1', 'proj_x2']] = embed_projections
         results.to_json(self.run_dir / f'results_{split}_{self.rank}.json', orient='records')
@@ -244,6 +251,9 @@ class Evaluation(object):
 
             for i, (video_data, video_labels, videos, labels) in enumerate(loader):
                 x = video_data.to(device=self.device, non_blocking=True)
+                x = NORMALIZE(x)
+                x = STANDARDIZE(x)
+
                 ids.extend([video.meta.id for video in videos])
                 targets.extend([label.data for label in labels])
 
@@ -293,7 +303,6 @@ class Evaluation(object):
             cols = ['top1_conf', 'top1_pred', 'top2_conf_1', 'top2_conf_2', 'top2_pred_1', 'top2_pred_2']
             for col in cols:
                 assert len(results[results[col].isnull()]) == 0, f'{col}, {len(results[results[col].isnull()])}'
-            cols = ['proj_x1', 'proj_x2']
             results.to_json(self.run_dir / f'results_{split}.json', orient='records')
 
         return self

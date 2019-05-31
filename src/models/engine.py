@@ -1,66 +1,22 @@
-import abc
-from typing import Tuple
-
 import torch as th
 from ignite import engine
 
 import constants as ct
-
-
-class TensorTransform(abc.ABC):
-    """Base video transform class."""
-
-    @abc.abstractmethod
-    def __call__(self, video: th.tensor) -> th.tensor:
-        """Video is always in format Mx(HxWxC)."""
-        pass
-
-
-class TensorNormalize(TensorTransform):
-    """Normalize a np.ndarray video to [0.0, 1.0] range"""
-    by: th.Tensor
-
-    def __init__(self, by: int):
-        self.by = th.tensor(by, dtype=th.float)
-
-    def __call__(self, video: th.Tensor) -> th.Tensor:
-        device = video.device
-        return video / self.by.to(device)
-
-
-class TensorStandardize(TensorTransform):
-    """Normalize a np.ndarray video with mean and standard deviation."""
-
-    def __init__(self, mean: Tuple[float, float, float], std: Tuple[float, float, float]):
-        self.mean = th.tensor(mean, dtype=th.float)
-        self.std = th.tensor(std, dtype=th.float)
-
-    def __call__(self, video: th.Tensor) -> th.Tensor:
-        _, _, c1, _, c2 = video.shape
-        device = video.device
-
-        if c1 == 3:
-            return (video - self.mean.reshape((1, 3, 1, 1)).to(device)) / self.std.reshape((1, 3, 1, 1)).to(device)
-        elif c2 == 3:
-            return (video - self.mean.reshape((1, 1, 1, 3)).to(device)) / self.std.reshape((1, 1, 1, 3)).to(device)
-        else:
-            raise ValueError(f'Unsupported video format: {video.shape}')
-
+from pipeline import TensorNormalize, TensorStandardize
 
 NORMALIZE = TensorNormalize(255)
 STANDARDIZE = TensorStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS)
 
 
 def _prepare_batch(batch, device=None, non_blocking=False):
-    """Prepare batch for training: pass to a device with options
-
-    """
+    """Prepare batch for training: pass to a device with options."""
     x, y = batch
     x = engine.convert_tensor(x, device=device, non_blocking=non_blocking)
     y = engine.convert_tensor(y, device=device, non_blocking=non_blocking)
 
     x = NORMALIZE(x)
     x = STANDARDIZE(x)
+
     return x, y
 
 
@@ -69,7 +25,7 @@ def create_discriminative_trainer(model, optimizer, loss_fn, device, non_blockin
         model.to(device)
 
     def _update(_engine, batch):
-        # model.train()
+        model.train()
         optimizer.zero_grad()
         x, y = _prepare_batch(batch, device=device, non_blocking=non_blocking)
         y_pred, embeds = model(x)
@@ -86,7 +42,7 @@ def create_discriminative_evaluator(model, metrics=None, device=None, non_blocki
         model.to(device)
 
     def _inference(_engine, batch):
-        # model.eval()
+        model.eval()
         with th.no_grad():
             x, y = _prepare_batch(batch, device=device, non_blocking=non_blocking)
             y_pred, embeds = model(x)

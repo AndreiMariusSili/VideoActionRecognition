@@ -10,6 +10,8 @@ COMPUTE_ENGINE_ICON = 'https://png2.kisspng.com/sh/6e14a20957f7cf13d844ea472ad8f
 ROOT = '..'
 SETTING = 'dummy'
 
+READ_JPEG = True
+
 SMTH_WEBM_DIR = pl.Path(os.path.join(ROOT, 'data', SETTING, 'smth', 'webm'))
 SMTH_JPEG_DIR = pl.Path(os.path.join(ROOT, 'data', SETTING, 'smth', 'jpeg'))
 SMTH_META_DATA_DIR = pl.Path(os.path.join(ROOT, 'data', SETTING, 'smth', 'meta'))
@@ -54,4 +56,4 @@ STYLES = pl.Path(os.path.join(ROOT, 'src', 'assets', 'styles.css'))
 
 NUM_DEVICES = cuda.device_count() if cuda.device_count() > 0 else 1
 
-TSNE_SAMPLE_SIZE = 50
+TSNE_SAMPLE_SIZE = 200

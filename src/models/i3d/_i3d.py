@@ -5,11 +5,13 @@ from torch import nn
 from models import _common as cm, options as mo
 
 
-class I3DEncoder(nn.Module):
-    def __init__(self, latent_size: int, dropout_prob: float = 0.0, name: str = 'i3d_encoder'):
-        super(I3DEncoder, self).__init__()
-        self.latent_size = latent_size
+class I3D(nn.Module):
+    def __init__(self, num_classes: int, dropout_prob: float = 0.0,
+                 name: str = 'inception'):
+        super(I3D, self).__init__()
+
         self.name = name
+        self.num_classes = num_classes
 
         # 3 x 4 x 224 x 224
         opts = mo.Unit3DOptions(out_channels=64, in_channels=3, kernel_size=(4, 7, 7), stride=(2, 2, 2))
@@ -51,32 +53,62 @@ class I3DEncoder(nn.Module):
         # 1024 x 1 x 1 x 1
         self.dropout = nn.Dropout(dropout_prob)
         # 1024 x 1 x 1 x 1
-        opts = mo.Unit3DOptions(in_channels=1024, out_channels=self.latent_size, kernel_size=(1, 1, 1),
+        opts = mo.Unit3DOptions(in_channels=1024, out_channels=self.num_classes, kernel_size=(1, 1, 1),
                                 activation='none', use_bias=True, use_bn=False)
-        self.mean = cm.Unit3D(opts)
-        # 1024 x 1 x 1 x 1
-        self.log_var = cm.Unit3D(opts)
-        # 1024 x 1 x 1 x 1
+        self.conv3d_0c_1x1 = cm.Unit3D(opts)
+        # num_classes x 1 x 1 x 1
+        self.softmax = nn.Softmax(dim=1)
+
+        self._he_init()
+
+    def _he_init(self):
+        for module in self.modules():
+            if isinstance(module, nn.Conv3d):
+                th.nn.init.kaiming_normal_(module.weight, mode='fan_in', nonlinearity='relu')
+                if module.bias is not None:
+                    module.bias.data.zero_()
+            elif isinstance(module, nn.BatchNorm3d):
+                module.weight.data.fill_(1)
+                module.bias.data.zero_()
 
     def forward(self, _in: th.Tensor) -> th.tensor:
         _in = _in.transpose(1, 2)
-        # print(f'{"encoder input":20s}:\t{_in.shape}')
-        for name, module in list(self.named_children())[:-2]:
-            _in = module(_in)
-            # print(f'{name:20s}:\t{_in.shape}')
-        mean = self.mean(_in)
-        log_var = self.log_var(_in)
-        # print(f'{"encoder mean":20s}:\t{mean.shape}')
-        # print(f'{"encoder log_var":20s}:\t{log_var.shape}')
+        bs = _in.shape[0]
 
-        return mean, log_var
+        out = self.conv3d_1a_7x7(_in)
+        out = self.maxPool3d_2a_3x3(out)
+        out = self.conv3d_2b_1x1(out)
+        out = self.conv3d_2c_3x3(out)
+        out = self.maxPool3d_3a_3x3(out)
+        out = self.mixed_3b(out)
+        out = self.mixed_3c(out)
+        out = self.maxPool3d_4a_3x3(out)
+        out = self.mixed_4b(out)
+        out = self.mixed_4c(out)
+        out = self.mixed_4d(out)
+        out = self.mixed_4e(out)
+        out = self.mixed_4f(out)
+        out = self.maxPool3d_5a_2x2(out)
+        out = self.mixed_5b(out)
+        out = self.mixed_5c(out)
+        out = self.avg_pool(out)
+        embeds = out.view(bs, -1)
+
+        out = self.dropout(out)
+        out = self.conv3d_0c_1x1(out)
+        out = out.squeeze(3)
+        out = out.squeeze(3)
+        out = out.mean(2)
+
+        return out, embeds
 
 
 if __name__ == '__main__':
     import os
 
     os.chdir('/Users/Play/Code/AI/master-thesis/src')
-    encoder = I3DEncoder(1024, 0.0, 'i3d_encoder')
-    print(encoder)
-    _in = th.randn((1, 4, 3, 224, 224), dtype=th.float)
-    _mean, _log_var = encoder(_in)
+    i3d = I3D(10)
+    print(i3d)
+    __in = th.randn((1, 4, 3, 224, 224), dtype=th.float)
+    __preds, __embeds = i3d(__in)
+    print(__preds.shape, __embeds.shape)

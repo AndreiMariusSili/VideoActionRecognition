@@ -1,1 +1,1 @@
-from models.i3d.i3dpt import I3D
+from models.i3d._i3d import I3D

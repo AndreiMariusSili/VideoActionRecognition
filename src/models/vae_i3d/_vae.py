@@ -3,7 +3,7 @@ from typing import Tuple
 import torch as th
 from torch import nn
 
-from models.vae_i3d import _common as cm
+from models import _common as cm
 from models.vae_i3d._classifier import I3DClassifier
 from models.vae_i3d._decoder import I3DDecoder
 from models.vae_i3d._encoder import I3DEncoder
@@ -30,6 +30,18 @@ class VAEI3D(nn.Module):
 
         self.decoder = I3DDecoder(latent_size)
         self.classifier = I3DClassifier(latent_size, num_classes)
+
+        self._he_init()
+
+    def _he_init(self):
+        for module in self.modules():
+            if isinstance(module, nn.Conv3d):
+                th.nn.init.kaiming_normal_(module.weight, mode='fan_in', nonlinearity='relu')
+                if module.bias is not None:
+                    module.bias.data.zero_()
+            elif isinstance(module, nn.BatchNorm3d):
+                module.weight.data.fill_(1)
+                module.bias.data.zero_()
 
     def forward(self, _in: th.Tensor, inference: bool, max_likelihood: bool, num_samples: int) -> VAE_FORWARD:
         if inference:

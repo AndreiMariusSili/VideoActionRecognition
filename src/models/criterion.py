@@ -17,11 +17,12 @@ class KLDivergence(nn.Module):
 class VAECriterion(nn.Module):
     factor: int
 
-    def __init__(self, mse_factor: int, ce_factor: int):
+    def __init__(self, mse_factor: float, ce_factor: float, kld_factor: float):
         super(VAECriterion, self).__init__()
 
         self.mse_factor = mse_factor
         self.ce_factor = ce_factor
+        self.kld_factor = kld_factor
 
         self.mse = nn.MSELoss(reduction='mean')
         self.ce = nn.CrossEntropyLoss(reduction='mean')
@@ -32,6 +33,6 @@ class VAECriterion(nn.Module):
                 _mean: th.Tensor, _log_var: th.Tensor):
         mse = self.mse_factor * self.mse(_recon, _in)
         ce = self.ce_factor * self.ce(_pred, _class)
-        kld = self.kld(_mean, _log_var)
+        kld = self.kld_factor * self.kld(_mean, _log_var)
 
         return mse, ce, kld

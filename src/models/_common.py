@@ -36,8 +36,13 @@ class Unit3D(nn.Module):
                 self.conv3d = nn.Conv3d(opts.in_channels, opts.out_channels, opts.kernel_size, stride=opts.stride,
                                         bias=opts.use_bias)
         elif opts.padding == 'VALID':
-            self.conv3d = nn.Conv3d(opts.in_channels, opts.out_channels, opts.kernel_size,
-                                    padding=padding_shape, stride=opts.stride, bias=opts.use_bias)
+            simplify_pad, pad_size = hp.simplify_padding(padding_shape)
+            if simplify_pad:
+                self.conv3d = nn.Conv3d(opts.in_channels, opts.out_channels, opts.kernel_size,
+                                        padding=pad_size, stride=opts.stride, bias=opts.use_bias)
+            else:
+                self.conv3d = nn.Conv3d(opts.in_channels, opts.out_channels, opts.kernel_size,
+                                        padding=padding_shape, stride=opts.stride, bias=opts.use_bias)
 
         if opts.use_bn:
             self.batch3d = nn.BatchNorm3d(opts.out_channels)
@@ -81,26 +86,33 @@ class Mixed(nn.Module):
     branch_2: nn.Sequential
     branch_3: nn.Sequential
 
-    def __init__(self, in_channels: int, out_channels: List[int]):
+    def __init__(self, in_channels: int, out_channels: List[int], kernel_depth: List[int] = None,
+                 max_pool: bool = True):
         super(Mixed, self).__init__()
 
+        if kernel_depth is None:
+            kernel_depth = [1, 1, 3, 1, 3, 3, 1]
+
         # Branch 0
-        self.branch_0 = Unit3D(mo.Unit3DOptions(in_channels, out_channels[0], kernel_size=(1, 1, 1)))
+        self.branch_0 = Unit3D(mo.Unit3DOptions(in_channels, out_channels[0], kernel_size=(kernel_depth[0], 1, 1)))
 
         # Branch 1
-        branch_1_conv1 = Unit3D(mo.Unit3DOptions(in_channels, out_channels[1], kernel_size=(1, 1, 1)))
-        branch_1_conv2 = Unit3D(mo.Unit3DOptions(out_channels[1], out_channels[2], kernel_size=(3, 3, 3)))
+        branch_1_conv1 = Unit3D(mo.Unit3DOptions(in_channels, out_channels[1], kernel_size=(kernel_depth[1], 1, 1)))
+        branch_1_conv2 = Unit3D(mo.Unit3DOptions(out_channels[1], out_channels[2], kernel_size=(kernel_depth[2], 3, 3)))
         self.branch_1 = nn.Sequential(branch_1_conv1, branch_1_conv2)
 
         # Branch 2
-        branch_2_conv1 = Unit3D(mo.Unit3DOptions(in_channels, out_channels[3], kernel_size=(1, 1, 1)))
-        branch_2_conv2 = Unit3D(mo.Unit3DOptions(out_channels[3], out_channels[4], kernel_size=(3, 3, 3)))
+        branch_2_conv1 = Unit3D(mo.Unit3DOptions(in_channels, out_channels[3], kernel_size=(kernel_depth[3], 1, 1)))
+        branch_2_conv2 = Unit3D(mo.Unit3DOptions(out_channels[3], out_channels[4], kernel_size=(kernel_depth[4], 3, 3)))
         self.branch_2 = nn.Sequential(branch_2_conv1, branch_2_conv2)
 
         # Branch3
-        branch_3_pool = MaxPool3dTFPadding(kernel_size=(3, 3, 3), stride=(1, 1, 1), padding='SAME')
-        branch_3_conv2 = Unit3D(mo.Unit3DOptions(in_channels, out_channels[5], kernel_size=(1, 1, 1)))
-        self.branch_3 = nn.Sequential(branch_3_pool, branch_3_conv2)
+        branch_3_conv2 = Unit3D(mo.Unit3DOptions(in_channels, out_channels[5], kernel_size=(kernel_depth[6], 1, 1)))
+        if max_pool:
+            branch_3_pool = MaxPool3dTFPadding(kernel_size=(kernel_depth[5], 3, 3), stride=(1, 1, 1), padding='SAME')
+            self.branch_3 = nn.Sequential(branch_3_pool, branch_3_conv2)
+        else:
+            self.branch_3 = nn.Sequential(branch_3_conv2)
 
     def forward(self, _in: th.Tensor) -> th.Tensor:
         _out_0 = self.branch_0(_in)

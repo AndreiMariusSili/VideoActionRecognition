@@ -48,8 +48,6 @@ class SmthDataBunch(object):
             pipe.RandomCrop(db_opts.frame_size),
             pipe.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05),
             pipe.ToVolumeArray(3, True) if self.db_opts.shape == 'volume' else pipe.ClipToStackedArray(3),
-            # pipe.ArrayNormalize(255),
-            # pipe.ArrayStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
         ])
         train_ds_opts.do.transform = pipe.VideoCompose(train_tfms)
 
@@ -57,8 +55,6 @@ class SmthDataBunch(object):
         valid_tfms.extend([
             pipe.CenterCrop(db_opts.frame_size),
             pipe.ToVolumeArray() if self.db_opts.shape == 'volume' else pipe.ClipToStackedArray(3),
-            # pipe.ArrayNormalize(255),
-            # pipe.ArrayStandardize(ct.IMAGE_NET_MEANS, ct.IMAGE_NET_STDS),
         ])
         valid_ds_opts.do.transform = pipe.VideoCompose(valid_tfms)
 

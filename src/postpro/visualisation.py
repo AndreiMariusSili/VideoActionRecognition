@@ -288,7 +288,7 @@ class Visualisation(object):
 
         legend_items = []
         fig = bop.figure(title='Train Embeddings Projection', tooltips=tooltips, tools=tools)
-        for i, template in enumerate(self.train_results.template.unique()):
+        for i, template in enumerate(sorted(self.train_results.template.unique())):
             # noinspection PyUnresolvedReferences
             df = train_embeddings[train_embeddings['template'] == template]
             df = df[df.proj_x1.notnull() & df.proj_x2.notnull()]
@@ -301,12 +301,12 @@ class Visualisation(object):
             if i == 19:
                 break
         legend = bom.Legend(items=legend_items, location='center')
-        fig.add_layout(legend, 'right')
+        fig.add_layout(legend, 'below')
         self.train_embeddings_figure = fig
 
         legend_items = []
         fig = bop.figure(title='Valid Embeddings Projection', tooltips=tooltips, tools=tools)
-        for i, template in enumerate(self.valid_results.template.unique()):
+        for i, template in enumerate(sorted(self.valid_results.template.unique())):
             # noinspection PyUnresolvedReferences
             source = bom.ColumnDataSource(valid_embeddings[valid_embeddings['template'] == template])
             glyph = fig.circle('proj_x1', 'proj_x2', source=source, size=10,
@@ -317,7 +317,7 @@ class Visualisation(object):
             if i == 19:
                 break
         legend = bom.Legend(items=legend_items, location='center')
-        fig.add_layout(legend, 'right')
+        fig.add_layout(legend, 'below')
         self.valid_embeddings_figure = fig
 
         return self

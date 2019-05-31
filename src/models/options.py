@@ -35,6 +35,7 @@ class CriterionOptions:
 class VAECriterionOptions(CriterionOptions):
     mse_factor: float
     ce_factor: float
+    kld_factor: float
 
 
 @dc.dataclass
@@ -66,7 +67,6 @@ class VAEI3DOptions:
 @dc.dataclass
 class I3DOptions:
     num_classes: int
-    modality: str = 'rgb'
     dropout_prob: float = 0.0
     name: str = 'inception'
 

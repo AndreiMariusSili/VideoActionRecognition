@@ -21,9 +21,8 @@ db_opts = pipe.DataBunchOptions(
 ########################################################################################################################
 train_do = pipe.DataOptions(
     meta_path=ct.SMTH_META_TRAIN,
-    cut=1.0,
+    cut=0.75,
     setting='train',
-    keep=128
 )
 train_so = pipe.SamplingOptions(
     num_segments=4,
@@ -37,17 +36,16 @@ train_dl_opts = pipe.DataLoaderOptions(
     batch_size=128,
     shuffle=True,
     num_workers=os.cpu_count(),
-    pin_memory=False,
+    pin_memory=True,
     drop_last=False
 )
 ########################################################################################################################
 # VALID DATA
 ########################################################################################################################
 valid_do = pipe.DataOptions(
-    meta_path=ct.SMTH_META_TRAIN,
-    cut=1.0,
+    meta_path=ct.SMTH_META_VALID,
+    cut=0.75,
     setting='valid',
-    keep=128
 )
 valid_so = pipe.SamplingOptions(
     num_segments=4,
@@ -61,7 +59,7 @@ valid_dl_opts = pipe.DataLoaderOptions(
     batch_size=128,
     shuffle=False,
     num_workers=os.cpu_count(),
-    pin_memory=False,
+    pin_memory=True,
     drop_last=False
 )
 ########################################################################################################################
@@ -73,16 +71,17 @@ model_opts = options.VAEI3DOptions(
     num_classes=ct.SMTH_NUM_CLASSES
 )
 optimizer_opts = options.AdamOptimizerOptions(
-    lr=0.01
+    lr=0.001
 )
 trainer_opts = options.TrainerOptions(
-    epochs=20,
+    epochs=100,
     optimizer=optim.Adam,
     optimizer_opts=optimizer_opts,
     criterion=criterion.VAECriterion,
     criterion_opts=options.VAECriterionOptions(
-        mse_factor=0.0,
-        ce_factor=128.0,
+        mse_factor=1.0,
+        ce_factor=1.0,
+        kld_factor=1.0
     )
 )
 evaluator_opts = options.EvaluatorOptions(
@@ -98,12 +97,12 @@ evaluator_opts = options.EvaluatorOptions(
 ########################################################################################################################
 # RUN
 ########################################################################################################################
-dev_vaei3d_smth = options.RunOptions(
-    name='dev_vaei3d_smth',
+vaei3d_smth_075 = options.RunOptions(
+    name='vaei3d_smth_075',
     mode='variational',
     resume=False,
-    log_interval=1,
-    patience=20,
+    log_interval=10,
+    patience=10,
     model=vae_i3d.VAEI3D,
     model_opts=model_opts,
     data_bunch=pipe.SmthDataBunch,

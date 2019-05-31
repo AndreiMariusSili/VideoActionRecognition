@@ -1,13 +1,13 @@
 from glob import glob
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import bokeh.models as bom
 import bokeh.plotting as bop
 import numpy as np
 from PIL import Image
 from skvideo import io
-from torch import cuda
 
+import constants as ct
 from pipeline import video_meta
 
 
@@ -18,7 +18,7 @@ class Video(object):
     num_segments: int
     segment_sample_size: int
     indices: np.ndarray
-    data: List[Image.Image]
+    data: Union[List[Image.Image], np.ndarray]
 
     def __init__(self, meta: video_meta.VideoMeta, cut: float, setting: str,
                  num_segments: Optional[int], segment_sample_size: Optional[int]):
@@ -33,16 +33,15 @@ class Video(object):
         self.num_segments = num_segments
         self.segment_sample_size = segment_sample_size
 
-        if self.num_segments is not None:
-            msg = f'Expected num_segments ({self.num_segments}) to be smaller or equal to cut ({self.cut}).'
-            assert self.num_segments <= self.cut, msg
+        if self.num_segments is not None and self.num_segments > self.cut:
+            self.num_segments = self.cut
 
         self.indices = self.__get_frame_indices()
         self.data = self.__get_frame_data()
 
     def __get_frame_indices(self):
         """Get a cut of the entire video."""
-        if cuda.is_available():
+        if ct.READ_JPEG:
             all_frame_paths = np.array(sorted(glob(f'{self.meta.jpeg_path}/*.jpeg')))
             cut_frame_paths = all_frame_paths[0:self.cut]
 
@@ -67,7 +66,7 @@ class Video(object):
     def __random_sample_segments(self, cut_frame_indices: np.ndarray):
         """Split the video into segments and uniformly random sample from each segment. If the segment is smaller than
         the sample size, sample with replacement to duplicate some frames."""
-        if cuda.is_available():
+        if ct.READ_JPEG:
             segments = np.array_split(cut_frame_indices, self.num_segments)
             segments = [segment for segment in segments if segment.size > 0]
             sample = []
@@ -98,7 +97,7 @@ class Video(object):
         return cut_frame_paths[sample_indices]
 
     def __get_frame_data(self):
-        if cuda.is_available():
+        if ct.READ_JPEG:
             return [Image.open(path) for path in self.indices]
         else:
             video = io.vread(self.meta.webm_path, num_frames=self.cut)
@@ -117,7 +116,10 @@ class Video(object):
 
     def __str__(self):
         """Representation as (id, {dimensions})"""
-        return f'Video {self.meta.id} ({"x".join(map(str, (len(self.data), *self.data[0].size)))})'
+        if isinstance(self.data, np.ndarray):
+            return f'Video {self.meta.id} ({"x".join(map(str, (len(self.data), *self.data[0].shape)))})'
+        else:
+            return f'Video {self.meta.id} ({"x".join(map(str, (len(self.data), *self.data[0].size)))})'
 
     def __repr__(self):
         return self.__str__()

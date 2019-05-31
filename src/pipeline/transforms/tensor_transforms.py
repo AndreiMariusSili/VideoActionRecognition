@@ -1,7 +1,8 @@
 import abc
-from typing import Tuple
-import torch as th
 import random
+from typing import Tuple
+
+import torch as th
 
 __all__ = ['TensorTransform', 'TensorNormalize', 'TensorStandardize', 'SpatialRandomCrop']
 
@@ -16,25 +17,38 @@ class TensorTransform(abc.ABC):
 
 
 class TensorNormalize(TensorTransform):
-    """Normalize a torch.Tensor video to [0.0, 1.0] range"""
-    by: int
+    """Normalize a np.ndarray video to [0.0, 1.0] range"""
+    by: th.Tensor
 
     def __init__(self, by: int):
         self.by = th.tensor(by, dtype=th.float)
 
     def __call__(self, video: th.Tensor) -> th.Tensor:
-        return video.div_(self.by)
+        device = video.device
+        return video / self.by.to(device)
 
 
 class TensorStandardize(TensorTransform):
-    """Normalize a torch.Tensor video with mean and standard deviation."""
+    """Normalize a np.ndarray video with mean and standard deviation."""
 
     def __init__(self, mean: Tuple[float, float, float], std: Tuple[float, float, float]):
-        self.mean = th.tensor(mean)
-        self.std = th.tensor(std)
+        self.mean = th.tensor(mean, dtype=th.float)
+        self.std = th.tensor(std, dtype=th.float)
 
-    def __call__(self, tensor: th.Tensor) -> th.Tensor:
-        return tensor.sub_(self.mean).div_(self.std)
+    def __call__(self, video: th.Tensor) -> th.Tensor:
+        device = video.device
+        if len(video.shape) == 4:
+            return video.sub_(self.mean.to(device)).div_(self.std.to(device))
+        elif len(video.shape) == 5:
+            _, _, c1, _, c2 = video.shape
+            if c1 == 3:
+                return (video - self.mean.reshape((1, 3, 1, 1)).to(device)) / self.std.reshape((1, 3, 1, 1)).to(device)
+            elif c2 == 3:
+                return (video - self.mean.reshape((1, 1, 1, 3)).to(device)) / self.std.reshape((1, 1, 1, 3)).to(device)
+            else:
+                raise ValueError(f'Unsupported video format: {video.shape}')
+        else:
+            raise ValueError(f'Unsupported video format: {video.shape}')
 
 
 class SpatialRandomCrop(TensorTransform):

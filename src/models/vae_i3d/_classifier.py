@@ -2,7 +2,7 @@
 import torch as th
 from torch import nn
 
-from . import _common as cm
+from models import _common as cm
 from .. import options as mo
 
 
@@ -16,7 +16,7 @@ class I3DClassifier(nn.Module):
         self.latent_size = latent_size
         self.num_classes = num_classes
         opts = mo.Unit3DOptions(in_channels=latent_size, out_channels=self.num_classes, kernel_size=(1, 1, 1),
-                                activation='none', use_bias=True, use_bn=False)
+                                stride=(1, 1, 1), activation='none', use_bias=False, use_bn=False, padding='VALID')
         self.classifier = cm.Unit3D(opts)
 
     def forward(self, _in: th.Tensor):

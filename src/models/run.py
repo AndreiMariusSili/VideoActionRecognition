@@ -388,23 +388,25 @@ class Run(object):
         """Evaluate on train and validation set."""
         metrics = {}
 
-        self._log('EVALUATION TRAIN.')
-        self.train_evaluator.run(self.data_bunch.train_loader)
-        for key, value in self.train_evaluator.state.metrics.items():
-            metrics[f'train_{key}'] = value
-        if self.mode == 'discriminative':
-            msg = (f'[Acc@1: {metrics["train_acc@1"]:.4f}]'
-                   f'[Acc@2: {metrics["train_acc@2"]:.4f}]'
-                   f'[Loss: {metrics["train_loss"]:.4f}]')
-        else:
-            all_losses = [metrics["train_mse_loss"], metrics["train_ce_loss"], metrics["train_kld_loss"]]
-            msg = (f'[Acc@1: {metrics["train_acc@1"]:.4f}]'
-                   f'[Acc@2: {metrics["train_acc@2"]:.4f}]'
-                   f'[MSE Loss: {metrics["train_mse_loss"]:.4f}]'
-                   f'[CE Loss: {metrics["train_ce_loss"]:.4f}]'
-                   f'[KLD Loss: {metrics["train_kld_loss"]:.4f}]'
-                   f'[Total Loss: {sum(all_losses):.4f}]')
-        self._log(msg)
+        # for key, value in self.train_evaluator.state.metrics.items():
+        #     metrics[f'train_{key}'] = None
+        # self._log('EVALUATION TRAIN.')
+        # self.train_evaluator.run(self.data_bunch.train_loader)
+        # for key, value in self.train_evaluator.state.metrics.items():
+        #     metrics[f'train_{key}'] = value
+        # if self.mode == 'discriminative':
+        #     msg = (f'[Acc@1: {metrics["train_acc@1"]:.4f}]'
+        #            f'[Acc@2: {metrics["train_acc@2"]:.4f}]'
+        #            f'[Loss: {metrics["train_loss"]:.4f}]')
+        # else:
+        #     all_losses = [metrics["train_mse_loss"], metrics["train_ce_loss"], metrics["train_kld_loss"]]
+        #     msg = (f'[Acc@1: {metrics["train_acc@1"]:.4f}]'
+        #            f'[Acc@2: {metrics["train_acc@2"]:.4f}]'
+        #            f'[MSE Loss: {metrics["train_mse_loss"]:.4f}]'
+        #            f'[CE Loss: {metrics["train_ce_loss"]:.4f}]'
+        #            f'[KLD Loss: {metrics["train_kld_loss"]:.4f}]'
+        #            f'[Total Loss: {sum(all_losses):.4f}]')
+        # self._log(msg)
 
         self._log('EVALUATION VALID.')
         self.valid_evaluator.run(self.data_bunch.valid_loader)
