@@ -57,3 +57,5 @@ STYLES = pl.Path(os.path.join(ROOT, 'src', 'assets', 'styles.css'))
 NUM_DEVICES = cuda.device_count() if cuda.device_count() > 0 else 1
 
 TSNE_SAMPLE_SIZE = 200
+
+VAE_NUM_SAMPLES = 10

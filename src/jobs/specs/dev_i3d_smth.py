@@ -1,5 +1,3 @@
-import os
-
 from ignite import metrics
 from torch import cuda, nn, optim
 
@@ -23,7 +21,7 @@ train_do = pipe.DataOptions(
     meta_path=ct.SMTH_META_TRAIN,
     cut=1.0,
     setting='train',
-    keep=64
+    keep=4
 )
 train_so = pipe.SamplingOptions(
     num_segments=4,
@@ -34,9 +32,9 @@ train_ds_opts = pipe.DataSetOptions(
     so=train_so
 )
 train_dl_opts = pipe.DataLoaderOptions(
-    batch_size=64,
+    batch_size=4,
     shuffle=True,
-    num_workers=os.cpu_count(),
+    num_workers=0,
     pin_memory=False,
     drop_last=False
 )
@@ -47,7 +45,7 @@ valid_do = pipe.DataOptions(
     meta_path=ct.SMTH_META_TRAIN,
     cut=1.0,
     setting='valid',
-    keep=64
+    keep=4
 )
 valid_so = pipe.SamplingOptions(
     num_segments=4,
@@ -58,14 +56,14 @@ valid_ds_opts = pipe.DataSetOptions(
     so=valid_so
 )
 valid_dl_opts = pipe.DataLoaderOptions(
-    batch_size=64,
+    batch_size=4,
     shuffle=False,
-    num_workers=os.cpu_count(),
+    num_workers=0,
     pin_memory=False,
     drop_last=False
 )
 ########################################################################################################################
-# MODEL AND AUXILIARIES
+# MODEL AND OPTIMIZER
 ########################################################################################################################
 model_opts = options.I3DOptions(
     num_classes=ct.SMTH_NUM_CLASSES,
@@ -74,17 +72,26 @@ model_opts = options.I3DOptions(
 optimizer_opts = options.AdamOptimizerOptions(
     lr=0.001
 )
+########################################################################################################################
+# TRAINER AND EVALUATOR
+########################################################################################################################
 trainer_opts = options.TrainerOptions(
-    epochs=30,
+    epochs=5,
     optimizer=optim.Adam,
     optimizer_opts=optimizer_opts,
-    criterion=nn.CrossEntropyLoss
+    criterion=nn.CrossEntropyLoss,
+    metrics={
+        'acc@1': metrics.Accuracy(output_transform=lambda x: x[1:3]),
+        'acc@2': metrics.TopKCategoricalAccuracy(k=2, output_transform=lambda x: x[1:3]),
+        'loss': metrics.Loss(nn.CrossEntropyLoss(), output_transform=lambda x: x[1:3])
+    }
 )
+
 evaluator_opts = options.EvaluatorOptions(
     metrics={
-        'acc@1': metrics.Accuracy(output_transform=lambda tpl: tpl[0:2]),
-        'acc@2': metrics.TopKCategoricalAccuracy(k=2, output_transform=lambda tpl: tpl[0:2]),
-        'loss': metrics.Loss(nn.CrossEntropyLoss(), output_transform=lambda tpl: tpl[0:2])
+        'acc@1': metrics.Accuracy(output_transform=lambda x: x[0:2]),
+        'acc@2': metrics.TopKCategoricalAccuracy(k=2, output_transform=lambda x: x[0:2]),
+        'loss': metrics.Loss(nn.CrossEntropyLoss(), output_transform=lambda x: x[0:2])
     }
 )
 ########################################################################################################################
@@ -95,7 +102,7 @@ dev_i3d_smth = options.RunOptions(
     mode='discriminative',
     resume=False,
     log_interval=1,
-    patience=10,
+    patience=5,
     model=i3d.I3D,
     model_opts=model_opts,
     data_bunch=pipe.SmthDataBunch,

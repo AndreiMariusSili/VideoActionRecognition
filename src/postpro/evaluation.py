@@ -1,5 +1,4 @@
 import pathlib as pl
-import pathlib as pl
 import traceback
 from glob import glob
 from typing import Any, List, Tuple
@@ -257,20 +256,21 @@ class Evaluation(object):
                 ids.extend([video.meta.id for video in videos])
                 targets.extend([label.data for label in labels])
 
-                _recon, _pred, _latent, _mean, _log_var = self.model(x, True, True, 0)
-                _pred_probs = softmax(_pred)
-                conf1, top1 = _pred_probs.max(dim=-1)
+                _recon, _pred, _latent, _mean, _log_var, _vote = self.model(x, True, ct.VAE_NUM_SAMPLES)
+
+                bs, ns, nc = _pred.shape
+                _pred_probs = softmax(_pred).mean(dim=1).view(bs, nc)
+                conf1, _ = _pred_probs.max(dim=-1)
+                conf2, _ = _pred_probs.topk(2, dim=-1)
+                _, top1 = _vote.max(dim=-1)
+                _, top2 = _vote.topk(2, dim=-1)
                 conf1s.append(conf1)
                 top1s.append(top1)
-
-                _recon, _pred, _latent, _mean, _log_var = self.model(x, True, False, 2)
-                _pred_probs = softmax(_pred)
-                conf2, top2 = _pred_probs.max(dim=-1)
                 conf2s.append(conf2)
                 top2s.append(top2)
 
-                _recon, _pred, _latent, _mean, _log_var = self.model(x, True, False, 1)
-                latents.append(_latent.view(-1, self.run_opts.model_opts.latent_size))
+                _latent = _latent[:, 0, :, :, :].view(bs, self.run_opts.model_opts.latent_size)
+                latents.append(_latent)
 
                 if self.rank == 0:
                     logging.info(f'[Batch: {i + 1}/{total}]')
@@ -288,7 +288,7 @@ class Evaluation(object):
         try:
             tsne = skm.TSNE()
             latent_projections = tsne.fit_transform(latents)
-        except ValueError as e:
+        except ValueError:
             latent_projections = np.array([100, 100])
         results.loc[ids, ['proj_x1', 'proj_x2']] = latent_projections
         results.to_json(self.run_dir / f'results_{split}_{self.rank}.json', orient='records')

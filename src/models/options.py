@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
 
 import dataclasses as dc
 from torch import nn, optim
@@ -86,11 +86,14 @@ class TrainerOptions:
     criterion: Type[nn.CrossEntropyLoss]
     optimizer_opts: Optional[OptimizerOptions] = OptimizerOptions()
     criterion_opts: Optional[CriterionOptions] = CriterionOptions()
+    metrics: Optional[Dict[str, Any]] = None
 
 
 @dc.dataclass
 class EvaluatorOptions:
     metrics: Dict[str, Any]
+    criterion: Optional[Callable] = None
+    criterion_opts: Optional[CriterionOptions] = CriterionOptions()
 
 
 @dc.dataclass

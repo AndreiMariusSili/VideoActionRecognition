@@ -1,10 +1,35 @@
-import numpy as np
+from typing import Tuple
+
 import torch as th
+from ignite import metrics
 from ignite.exceptions import NotComputableError
-from ignite.metrics.metric import Metric
 
 
-class _VAEBaseClassification(Metric):
+class AverageMeter(metrics.Metric):
+    """Computes and stores the average and current value"""
+
+    def __init__(self, output_transform=lambda x: x):
+        self.sum = 0
+        self.num_examples = 0
+        super(AverageMeter, self).__init__(output_transform=output_transform)
+
+    def reset(self):
+        self.sum = 0
+        self.num_examples = 0
+
+    def update(self, output):
+        val, n = output
+
+        self.sum += val * n
+        self.num_examples += n
+
+    def compute(self):
+        if self.num_examples == 0:
+            raise NotComputableError('Average must have at least one example before it can be computed')
+        return self.sum / self.num_examples
+
+
+class _VAEBaseClassification(metrics.Metric):
 
     def __init__(self, output_transform=lambda x: x):
         self._type = None
@@ -135,56 +160,51 @@ class VAEAccuracyAt2(_VAEBaseClassification):
         return self._num_correct / self._num_examples
 
 
-class VAELoss(Metric):
+class VAELoss(metrics.Metric):
 
-    def __init__(self, loss_fn, output_transform=lambda x: x,
-                 batch_size=lambda x: x.shape[0], take=0):
+    def __init__(self, loss_fn, output_transform=lambda x: x):
         super(VAELoss, self).__init__(output_transform)
-        self._loss_fn = loss_fn
-        self._batch_size = batch_size
-        self._sum = 0
-        self._num_examples = 0
-        self.take = take
+        self.loss_fn = loss_fn
+        self.mse = 0
+        self.ce = 0
+        self.kld = 0
+        self.num_examples = 0
 
     def reset(self):
-        self._sum = 0
-        self._num_examples = 0
+        self.mse = 0
+        self.ce = 0
+        self.kld = 0
+        self.num_examples = 0
 
-    def prepare(self, output):
-        _ml_recon, _ml_pred, _mean, _log_var, _var_preds, _in, _target = output
-        batch_size = _target.shape[0]
-        num_preds, num_classes = _var_preds.shape
-        num_samples = num_preds // batch_size
-        _var_preds = _var_preds[0:num_preds:num_samples, 0:num_classes].view(batch_size, num_classes)
+    def prepare(self, output: Tuple[th.Tensor, ...]) -> Tuple[th.Tensor, ...]:
+        _recon, _pred, _latent, _mean, _log_var, _in, _target, _ = output
+        _pred = _pred[:, 0, :].squeeze(dim=1)
 
-        return _ml_recon, _ml_pred, _mean, _log_var, _var_preds, _in, _target
+        return _recon, _pred, _latent, _mean, _log_var, _in, _target
 
     def update(self, output):
-        _ml_recon, _ml_pred, _mean, _log_var, _var_pred, _in, _target = self.prepare(output)
-        if self.take > -1:
-            average_loss = self._loss_fn(_ml_recon, _ml_pred, _in, _target, _mean, _log_var)[self.take]
-        else:
-            average_loss = np.sum(self._loss_fn(_ml_recon, _ml_pred, _in, _target, _mean, _log_var))
+        _recon, _pred, _latent, _mean, _log_var, _input, _target, = self.prepare(output)
+        mse, ce, kld = self.loss_fn(_recon, _pred, _input, _target, _mean, _log_var)
 
-        if len(average_loss.shape) != 0:
-            raise ValueError('loss_fn did not return the average loss')
+        n = _pred.shape[0]
 
-        N = self._batch_size(_target)
-        self._sum += average_loss.item() * N
-        self._num_examples += N
+        self.mse += mse.item() * n
+        self.ce += ce.item() * n
+        self.kld += kld.item() * n
+        self.num_examples += n
 
     def compute(self):
-        if self._num_examples == 0:
+        if self.num_examples == 0:
             raise NotComputableError(
                 'Loss must have at least one example before it can be computed')
-        return self._sum / self._num_examples
+        return self.mse / self.num_examples, self.ce / self.num_examples, self.kld / self.num_examples
 
 
 if __name__ == '__main__':
     acc1 = VAEAccuracyAt1()
     acc2 = VAEAccuracyAt2()
 
-    _input = th.randn((2, 4, 3, 224, 224), dtype=th.float)
+    __input = th.randn((2, 4, 3, 224, 224), dtype=th.float)
     ml_recon = th.randn((2, 4, 3, 224, 224), dtype=th.float)
     ml_pred = th.rand((3, 10), dtype=th.float)
     ml_pred[0, 0] = 1.00
@@ -201,8 +221,8 @@ if __name__ == '__main__':
     mean = th.randn((3, 1024), dtype=th.float)
     log_var = th.randn((3, 1024), dtype=th.float)
 
-    acc1.update((ml_recon, ml_pred, mean, log_var, var_preds, _input, target))
+    acc1.update((ml_recon, ml_pred, mean, log_var, var_preds, __input, target))
     print(acc1.compute())
 
-    acc2.update((ml_recon, ml_pred, mean, log_var, var_preds, _input, target))
+    acc2.update((ml_recon, ml_pred, mean, log_var, var_preds, __input, target))
     print(acc2.compute())

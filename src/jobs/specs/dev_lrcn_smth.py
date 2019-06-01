@@ -65,7 +65,7 @@ valid_dl_opts = pipe.DataLoaderOptions(
     drop_last=False
 )
 ########################################################################################################################
-# MODEL AND AUXILIARIES
+# MODEL AND OPTIMIZER
 ########################################################################################################################
 model_opts = options.LRCNOptions(
     num_classes=ct.SMTH_NUM_CLASSES,
@@ -75,17 +75,26 @@ model_opts = options.LRCNOptions(
 optimizer_opts = options.AdamOptimizerOptions(
     lr=0.01
 )
+########################################################################################################################
+# TRAINER AND EVALUATOR
+########################################################################################################################
 trainer_opts = options.TrainerOptions(
-    epochs=100,
+    epochs=30,
     optimizer=optim.Adam,
     optimizer_opts=optimizer_opts,
-    criterion=nn.CrossEntropyLoss
+    criterion=nn.CrossEntropyLoss,
+    metrics={
+        'acc@1': metrics.Accuracy(output_transform=lambda x: x[1:3]),
+        'acc@2': metrics.TopKCategoricalAccuracy(k=2, output_transform=lambda x: x[1:3]),
+        'loss': metrics.Loss(nn.CrossEntropyLoss(), output_transform=lambda x: x[1:3])
+    }
 )
+
 evaluator_opts = options.EvaluatorOptions(
     metrics={
-        'acc@1': metrics.Accuracy(),
-        'acc@3': metrics.TopKCategoricalAccuracy(k=3),
-        'loss': metrics.Loss(nn.CrossEntropyLoss())
+        'acc@1': metrics.Accuracy(output_transform=lambda x: x[0:2]),
+        'acc@2': metrics.TopKCategoricalAccuracy(k=2, output_transform=lambda x: x[0:2]),
+        'loss': metrics.Loss(nn.CrossEntropyLoss(), output_transform=lambda x: x[0:2])
     }
 )
 ########################################################################################################################

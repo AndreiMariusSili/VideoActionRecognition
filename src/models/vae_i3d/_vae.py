@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch as th
 from torch import nn
@@ -8,7 +8,7 @@ from models.vae_i3d._classifier import I3DClassifier
 from models.vae_i3d._decoder import I3DDecoder
 from models.vae_i3d._encoder import I3DEncoder
 
-VAE_FORWARD = Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor, th.Tensor]
+VAE_FORWARD = Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor, th.Tensor, Optional[th.Tensor]]
 
 
 class VAEI3D(nn.Module):
@@ -43,40 +43,55 @@ class VAEI3D(nn.Module):
                 module.weight.data.fill_(1)
                 module.bias.data.zero_()
 
-    def forward(self, _in: th.Tensor, inference: bool, max_likelihood: bool, num_samples: int) -> VAE_FORWARD:
+    def forward(self, _in: th.Tensor, inference: bool, num_samples: int) -> VAE_FORWARD:
         if inference:
-            return self._inference(_in, max_likelihood, num_samples)
+            return self._inference(_in, num_samples)
         else:
-            return self._forward(_in)
+            return self._forward(_in, num_samples)
 
-    def _forward(self, _in: th.Tensor):
+    def _forward(self, _in: th.Tensor, num_samples: int) -> VAE_FORWARD:
         bs = _in.shape[0]
 
         _mean, _log_var = self.encoder(_in)
         _mean, _log_var = self.flatten(_mean), self.flatten(_log_var)
-        _latent = self.rsample(_mean, _log_var, 1)
+        _latent = self.rsample(_mean, _log_var, num_samples)
         _latent = self.unflatten(_latent)
-        _pred = self.classifier(_latent).view(bs, self.num_classes)
+        _pred = self.classifier(_latent).view(bs, num_samples, self.num_classes)
         _recon = self.decoder(_latent)
 
-        return _recon, _pred, _latent, _mean, _log_var
+        _latent = _latent.view(bs, num_samples, self.latent_size, 1, 1, 1)
 
-    def _inference(self, _in: th.Tensor, max_likelihood: bool, num_samples: int):
+        return _recon, _pred, _latent, _mean, _log_var, None
+
+    def _inference(self, _in: th.Tensor, num_samples: int) -> VAE_FORWARD:
         bs = _in.shape[0]
 
         _mean, _log_var = self.encoder(_in)
         _mean, _log_var = self.flatten(_mean), self.flatten(_log_var)
-        if max_likelihood:
-            _latent = self.unflatten(_mean)
-            _pred = self.classifier(_latent).view(bs, self.num_classes)
-            _recon = self.decoder(_latent)
-        else:
+        if num_samples:
             _latent = self.rsample(_mean, _log_var, num_samples)
             _latent = self.unflatten(_latent)
-            _pred = self.classifier(_latent).view(bs * num_samples, self.num_classes)
-            _recon = None
+            _pred = self.classifier(_latent).view(bs, num_samples, self.num_classes)
+            _vote = self._vote(_pred)
+        else:
+            num_samples = 1  # 0 number of samples means 1 ML prediction
+            _latent = self.unflatten(_mean)
+            _pred = self.classifier(_latent).view(bs, num_samples, self.num_classes)
+            _vote = self._vote(_pred)
 
-        return _recon, _pred, _latent, _mean, _log_var
+        _recon = self.decoder(_latent[::num_samples, :, :, :, :])
+        _latent = _latent.view(bs, num_samples, self.latent_size, 1, 1, 1)
+
+        return _recon, _pred, _latent, _mean, _log_var, _vote
+
+    def _vote(self, _preds: th.Tensor) -> th.Tensor:
+        bs, num_samples, _ = _preds.shape
+        _preds = th.argmax(_preds, dim=2, keepdim=True)
+
+        _votes = th.zeros(bs, num_samples, self.num_classes)
+        _votes = _votes.scatter(2, _preds, 1).sum(dim=1)
+
+        return _votes
 
 
 if __name__ == '__main__':
@@ -85,23 +100,33 @@ if __name__ == '__main__':
     os.chdir('/Users/Play/Code/AI/master-thesis/src')
     vae = VAEI3D(3, 0.0, 10)
     print(vae)
+
+    print("===INPUT===")
     _in = th.randn((2, 4, 3, 224, 224), dtype=th.float)
-    x, y, z, mu, sig = vae(_in, False, False, 0)
+    print(_in.shape)
+
+    print("===FORWARD===")
+    x, y, z, mu, sig, _ = vae(_in, False, 1)
     print(f'{"mean":20s}:\t{mu.shape}')
     print(f'{"log_var":20s}:\t{sig.shape}')
     print(f'{"latent":20s}:\t{z.shape}')
     print(f'{"pred":20s}:\t{y.shape}')
     print(f'{"recon":20s}:\t{x.shape}')
 
-    x, y, z, mu, sig = vae(_in, True, True, 0)
+    print("===ML INFERENCE===")
+    x, y, z, mu, sig, v = vae(_in, True, 0)
     print(f'{"mean":20s}:\t{mu.shape}')
     print(f'{"log_var":20s}:\t{sig.shape}')
     print(f'{"latent":20s}:\t{z.shape}')
     print(f'{"pred":20s}:\t{y.shape}')
+    print(f'{"vote":20s}:\t{v.shape}')
     print(f'{"recon":20s}:\t{x.shape}')
 
-    x, y, z, mu, sig = vae(_in, True, False, 3)
+    print("===VARIATIONAL INFERENCE===")
+    x, y, z, mu, sig, v = vae(_in, True, 5)
     print(f'{"mean":20s}:\t{mu.shape}')
     print(f'{"log_var":20s}:\t{sig.shape}')
     print(f'{"latent":20s}:\t{z.shape}')
     print(f'{"pred":20s}:\t{y.shape}')
+    print(f'{"vote":20s}:\t{v.shape}')
+    print(f'{"recon":20s}:\t{x.shape}')

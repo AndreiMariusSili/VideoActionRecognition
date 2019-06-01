@@ -19,5 +19,5 @@ class I3DClassifier(nn.Module):
                                 stride=(1, 1, 1), activation='none', use_bias=False, use_bn=False, padding='VALID')
         self.classifier = cm.Unit3D(opts)
 
-    def forward(self, _in: th.Tensor):
+    def forward(self, _in: th.Tensor) -> th.Tensor:
         return self.classifier(_in)

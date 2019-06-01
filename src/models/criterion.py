@@ -6,12 +6,13 @@ class KLDivergence(nn.Module):
     def __init__(self):
         super(KLDivergence, self).__init__()
 
-    def forward(self, mean: th.Tensor, log_var: th.Tensor):
+    def forward(self, mean: th.Tensor, log_var: th.Tensor) -> th.Tensor:
         device = mean.device
+        bs, latent_size = mean.shape
 
-        kld = th.tensor(-0.5).to(device) * (th.tensor(1.0).to(device) + log_var - mean.pow(2) - log_var.exp()).mean()
+        kld = th.tensor(-0.5).to(device) * (th.tensor(1.0).to(device) + log_var - mean.pow(2) - log_var.exp()).sum()
 
-        return kld
+        return kld / (bs * latent_size)
 
 
 class VAECriterion(nn.Module):

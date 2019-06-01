@@ -157,7 +157,7 @@ class Unflatten(nn.Module):
 
         self.num_channels = num_channels
 
-    def forward(self, _in: th.Tensor):
+    def forward(self, _in: th.Tensor) -> th.Tensor:
         if len(_in.shape) == 3:
             bs, num_samples, latent_size = _in.shape
         elif len(_in.shape) == 2:
@@ -177,13 +177,13 @@ class ReparameterizedSample(nn.Module):
 
         self.latent_size = latent_size
 
-    def forward(self, mean: th.Tensor, log_var: th.Tensor, num_samples: int):
+    def forward(self, mean: th.Tensor, log_var: th.Tensor, num_samples: int) -> th.Tensor:
         bs = mean.shape[0]
         device = mean.device
 
-        std = th.exp(th.tensor(0.5, device=device) * log_var)
+        std = log_var.mul(0.5).exp()
         eps = th.randn((num_samples, bs, self.latent_size), device=device)
-        z = eps * std + mean
+        z = eps.mul(std).add(mean)
 
         return z.transpose(0, 1).contiguous()
 

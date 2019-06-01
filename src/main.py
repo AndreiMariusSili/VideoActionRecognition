@@ -1,5 +1,7 @@
-from typing import Dict, Any
 import argparse
+from typing import Any, Dict
+
+import env
 import jobs
 
 
@@ -16,6 +18,7 @@ def parse_options(opts: str) -> Dict[str, Any]:
 
 def main(args):
     """Parse arguments and start jobs."""
+    env.logging.info('Running main script.')
     job, opts = args.job, parse_options(args.opts)
     opts['local_rank'] = args.local_rank
     if job == 'create_dummy_set':
