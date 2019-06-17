@@ -21,6 +21,7 @@ dependencies:
   - bokeh
   - jupyter
   - requests
+  - seaborn
   - pip:
       - dataclasses
       - memory-profiler

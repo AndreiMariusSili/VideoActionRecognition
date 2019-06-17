@@ -1,14 +1,14 @@
-import bokeh.plotting as bop
 import bokeh.models as bom
+import bokeh.plotting as bop
 
-import pipeline as pipe
+import pipeline.video_meta as pim
 
 
 class Label(object):
     data: int
-    meta: pipe.VideoMeta
+    meta: pim.VideoMeta
 
-    def __init__(self, meta: pipe.VideoMeta):
+    def __init__(self, meta: pim.VideoMeta):
         """Initialize a Label object from a row in the meta DataFrame and an integer identifier."""
         self.meta = meta
         self.data = meta.template_id

@@ -2,7 +2,8 @@
 import torch as th
 from torch import nn
 
-from models import _common as cm, options as mo
+from models import common as cm
+from options import model_options as mo
 
 
 class I3DEncoder(nn.Module):
@@ -12,7 +13,8 @@ class I3DEncoder(nn.Module):
         self.name = name
 
         # 3 x 4 x 224 x 224
-        opts = mo.Unit3DOptions(out_channels=64, in_channels=3, kernel_size=(4, 7, 7), stride=(2, 2, 2))
+        opts = mo.Unit3DOptions(out_channels=64, in_channels=3, kernel_size=(3, 7, 7), stride=(1, 2, 2),
+                                padding='TEMPORAL_VALID')
         self.conv3d_1a_7x7 = cm.Unit3D(opts)
         # 64 x 2 x 112 x 112
         self.maxPool3d_2a_3x3 = cm.MaxPool3dTFPadding(kernel_size=(1, 3, 3), stride=(1, 2, 2))
@@ -66,8 +68,7 @@ class I3DEncoder(nn.Module):
             # print(f'{name:20s}:\t{_in.shape}')
         mean = self.mean(_in)
         log_var = self.log_var(_in)
-        # print(f'{"encoder mean":20s}:\t{mean.shape}')
-        # print(f'{"encoder log_var":20s}:\t{log_var.shape}')
+        # print(f'{"encoder log_var":20s}:\t{log_var.shape}\n{"encoder mean":20s}:\t{mean.shape}')
 
         return mean, log_var
 
@@ -78,5 +79,5 @@ if __name__ == '__main__':
     os.chdir('/Users/Play/Code/AI/master-thesis/src')
     encoder = I3DEncoder(1024, 0.0, 'i3d_encoder')
     print(encoder)
-    _in = th.randn((1, 4, 3, 224, 224), dtype=th.float)
-    _mean, _log_var = encoder(_in)
+    __in = th.randn((1, 4, 3, 224, 224), dtype=th.float)
+    _mean, _log_var = encoder(__in)

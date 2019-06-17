@@ -1,15 +1,16 @@
-import bokeh.models as bom
-import bokeh.layouts as bol
 from typing import List
+
+import bokeh.layouts as bol
+import bokeh.models as bom
 import pandas as pd
 
-import pipeline as pipe
+import pipeline.video_meta as pim
 
 
 class Prediction(object):
-    meta: pipe.VideoResultMeta
+    meta: pim.VideoResultMeta
 
-    def __init__(self, meta: pipe.VideoResultMeta):
+    def __init__(self, meta: pim.VideoResultMeta):
         self.meta = meta
 
     def show(self, id2template: pd.DataFrame, css: List[str] = None) -> bol.Column:

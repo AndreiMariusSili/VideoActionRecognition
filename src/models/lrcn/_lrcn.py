@@ -6,7 +6,6 @@ import torchvision as thv
 from torch import nn, optim
 
 import constants as ct
-import pipeline as pipe
 
 CONV_OUT_C, CONV_OUT_H, CONV_OUT_W = 512, 7, 7
 FUSION_IN = CONV_OUT_C * CONV_OUT_H * CONV_OUT_W
@@ -93,47 +92,54 @@ class LRCN(nn.Module):
 
 
 if __name__ == '__main__':
+    from pipeline import smth
+    from options import pipe_options
+
     os.chdir('/Users/Play/Code/AI/master-thesis/src/')
-    db_opts = pipe.DataBunchOptions(shape='volume', frame_size=224)
-    _train_do = pipe.DataOptions(
+    db_opts = pipe_options.DataBunchOptions(shape='volume', frame_size=224)
+    _train_do = pipe_options.DataOptions(
         meta_path=ct.SMTH_META_TRAIN,
         cut=1.0,
         setting='train',
         transform=None,
         keep=4
     )
-    _train_so = pipe.SamplingOptions(
+    _train_so = pipe_options.SamplingOptions(
         num_segments=4,
         segment_size=4
     )
-    _valid_do = pipe.DataOptions(
-        meta_path=ct.SMTH_META_VALID,
+    _dev_do = pipe_options.DataOptions(
+        meta_path=ct.SMTH_META_DEV,
+        cut=1.0,
+        setting='train',
+        transform=None,
+        keep=4
+    )
+    _dev_so = pipe_options.SamplingOptions(
+        num_segments=4,
+        segment_size=4
+    )
+    _valid_do = pipe_options.DataOptions(
+        meta_path=ct.SMTH_META_TRAIN,
         cut=1.0,
         setting='valid',
         transform=None,
         keep=2
     )
-    _valid_so = pipe.SamplingOptions(
+    _valid_so = pipe_options.SamplingOptions(
         num_segments=4,
         segment_size=4
     )
-    _train_ds_opts = pipe.DataSetOptions(
-        do=_train_do,
-        so=_train_so
-    )
-    _valid_ds_opts = pipe.DataSetOptions(
-        do=_valid_do,
-        so=_valid_so
-    )
-    dl = pipe.DataLoaderOptions(
+    dl = pipe_options.DataLoaderOptions(
         batch_size=2,
         pin_memory=False, shuffle=True,
         num_workers=os.cpu_count()
     )
-    train_ds = pipe.DataSetOptions(_train_do, _train_so)
-    valid_ds = pipe.DataSetOptions(_valid_do, _valid_so)
+    train_ds = pipe_options.DataSetOptions(_train_do, _train_so)
+    dev_ds = pipe_options.DataSetOptions(_train_do, _train_so)
+    valid_ds = pipe_options.DataSetOptions(_valid_do, _valid_so)
 
-    bunch = pipe.SmthDataBunch(db_opts, train_ds, valid_ds, dl, dl)
+    bunch = smth.SmthDataBunch(db_opts, train_ds, dev_ds, valid_ds, dl, dl, dl)
     device = th.device('cuda' if th.cuda.is_available() else 'cpu')
 
     model = LRCN(10, False, False).to(device=device)

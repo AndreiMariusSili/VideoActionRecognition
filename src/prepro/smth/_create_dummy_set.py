@@ -1,5 +1,4 @@
 import os
-import random
 import shutil
 from typing import Tuple
 
@@ -38,26 +37,10 @@ def _create_dummy_groups() -> pd.DataFrame:
     return sample
 
 
-def _create_dummy_labels(full_labels: pd.DataFrame, dummy_labels2lid: pd.DataFrame,
-                         dummy_split: str, split_name: str, sample: bool) -> pd.DataFrame:
+def _create_dummy_labels(full_labels: pd.DataFrame, dummy_labels2lid: pd.DataFrame, dummy_split: str) -> pd.DataFrame:
     """Create the dummy labels DataFrame by matching with the dummy labels2id templates and sampling from ."""
     mask = full_labels['template'].isin(dummy_labels2lid['template'])
     dummy_labels = full_labels[mask]
-
-    if sample:
-        samples = []
-        for template in dummy_labels2lid['template']:
-            if split_name == 'train':
-                n = random.randint(*ct.SMTH_TRAIN_DUMMY_SAMPLE)
-            elif split_name == 'valid':
-                n = random.randint(*ct.SMTH_VALID_DUMMY_SAMPLE)
-            else:
-                raise ValueError(f'Unknown split: {split_name}')
-
-            sample = dummy_labels[dummy_labels['template'] == template].sample(n=n, random_state=0).index
-
-            samples.extend(sample)
-        dummy_labels = dummy_labels.loc[samples]
 
     dummy_labels.reset_index(drop=True).to_json(dummy_split, orient='records')
 
@@ -88,7 +71,7 @@ def _create_dummy_inputs(dummy_labels: pd.DataFrame) -> Tuple[str, str, int]:
     return smth_full_raw_data, ct.SMTH_WEBM_DIR, len(dummy_labels)
 
 
-def main(sample: bool):
+def main():
     """Create dummy sets for the something-something dataset based on a random selection of contrastive groups.
         The groups might be non-mutually-exclusive so the sampling is repeated until this condition is met."""
     try:
@@ -120,7 +103,7 @@ def main(sample: bool):
             full_labels = hp.read_smth_meta(full_split)
             logging.info(f'Loaded full labels DataFrame from {full_split}.')
             # create dummy label files
-            dummy_labels = _create_dummy_labels(full_labels, dummy_labels2lid, dummy_split, split_name, sample)
+            dummy_labels = _create_dummy_labels(full_labels, dummy_labels2lid, dummy_split)
             logging.info(f'Created {ct.SETTING} {split_name} labels DataFrame with {len(dummy_labels)} entries.')
             # copy matching inputs to dummy location
             _from, _to, total = _create_dummy_inputs(dummy_labels)

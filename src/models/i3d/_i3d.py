@@ -2,7 +2,8 @@
 import torch as th
 from torch import nn
 
-from models import _common as cm, options as mo
+from models import common as cm
+from options import model_options as mo
 
 
 class I3D(nn.Module):
@@ -14,7 +15,8 @@ class I3D(nn.Module):
         self.num_classes = num_classes
 
         # 3 x 4 x 224 x 224
-        opts = mo.Unit3DOptions(out_channels=64, in_channels=3, kernel_size=(4, 7, 7), stride=(2, 2, 2))
+        opts = mo.Unit3DOptions(out_channels=64, in_channels=3, kernel_size=(3, 7, 7), stride=(1, 2, 2),
+                                padding='TEMPORAL_VALID')
         self.conv3d_1a_7x7 = cm.Unit3D(opts)
         # 64 x 2 x 112 x 112
         self.maxPool3d_2a_3x3 = cm.MaxPool3dTFPadding(kernel_size=(1, 3, 3), stride=(1, 2, 2))
@@ -74,7 +76,6 @@ class I3D(nn.Module):
     def forward(self, _in: th.Tensor) -> th.tensor:
         _in = _in.transpose(1, 2)
         bs = _in.shape[0]
-
         out = self.conv3d_1a_7x7(_in)
         out = self.maxPool3d_2a_3x3(out)
         out = self.conv3d_2b_1x1(out)
@@ -92,13 +93,12 @@ class I3D(nn.Module):
         out = self.mixed_5b(out)
         out = self.mixed_5c(out)
         out = self.avg_pool(out)
+
         embeds = out.view(bs, -1)
 
         out = self.dropout(out)
         out = self.conv3d_0c_1x1(out)
-        out = out.squeeze(3)
-        out = out.squeeze(3)
-        out = out.mean(2)
+        out = out.squeeze(3).squeeze(3).mean(2)
 
         return out, embeds
 

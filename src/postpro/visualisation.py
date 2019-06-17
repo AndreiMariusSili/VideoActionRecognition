@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Tuple
 import bokeh.document as bod
 import bokeh.layouts as bol
 import bokeh.models as bom
-import bokeh.models.widgets as bomw
 import bokeh.palettes as pal
 import bokeh.plotting as bop
 import numpy as np
@@ -16,16 +15,17 @@ from torch import nn
 
 import constants as ct
 import helpers as hp
-import models.options as mo
-import pipeline as pipe
+import options.model_options as mo
+from pipeline import label as pil, prediction as pip, video as piv
 
 
 class Visualisation(object):
     page: str
-    tabs: List[bomw.Panel]
+    mode: str
     doc: bod.Document
     stats: bom.ColumnDataSource
     model: nn.Module
+    cut: str
     run_dir: pl.Path
     run_opts: mo.RunOptions
     best_ckpt: str
@@ -36,10 +36,11 @@ class Visualisation(object):
 
     train_results: pd.DataFrame
     valid_results: pd.DataFrame
+    test_results: pd.DataFrame
 
-    videos: List[pipe.Video]
-    labels: List[pipe.Label]
-    predictions: List[pipe.Prediction]
+    videos: List[piv.Video]
+    labels: List[pil.Label]
+    predictions: List[pip.Prediction]
 
     split: str
     train_label_confusion: bom.ColumnDataSource
@@ -51,13 +52,25 @@ class Visualisation(object):
     train_group_confusion_fig: bop.Figure
     valid_group_confusion_fig: bop.Figure
 
-    train_embeddings: bom.ColumnDataSource
-    valid_embeddings: bom.ColumnDataSource
-
     def __init__(self, page: str, spec: mo.RunOptions):
         """Init a visualizer with a run model. They need to match."""
         self.page = page
-        self.run_dir = ct.SMTH_RUN_DIR / spec.name
+        self.mode = spec.mode
+        if self.mode == 'class':
+            self.name = spec.name
+        elif self.mode == 'ae':
+            self.name = f'{spec.name}@' \
+                f'{spec.trainer_opts.criterion_opts.mse_factor}_' \
+                f'{spec.trainer_opts.criterion_opts.ce_factor}'
+        else:
+            self.name = f'{spec.name}@' \
+                f'{spec.trainer_opts.criterion_opts.mse_factor}_' \
+                f'{spec.trainer_opts.criterion_opts.ce_factor}_' \
+                f'{spec.trainer_opts.criterion_opts.kld_factor}'
+
+        self.cut = f'__{self.name.split("@").pop(0).split("_").pop()}'
+        self.run_dir = ct.SMTH_RUN_DIR / self.cut / self.name
+
         self.run_opts = spec
         self._load_data()._load_stats()._load_results()._setup_bokeh()
 
@@ -87,8 +100,10 @@ class Visualisation(object):
         """Load a DataBunch and label / group id mappings."""
         self.data_bunch = self.run_opts.data_bunch(self.run_opts.db_opts,
                                                    self.run_opts.train_ds_opts,
+                                                   self.run_opts.dev_ds_opts,
                                                    self.run_opts.valid_ds_opts,
                                                    self.run_opts.train_dl_opts,
+                                                   self.run_opts.dev_dl_opts,
                                                    self.run_opts.valid_dl_opts)
         self.label2lid = hp.read_smth_label2lid()
         self.lid2label = hp.read_smth_lid2label()
@@ -101,22 +116,29 @@ class Visualisation(object):
         """Load training/evaluation statistics."""
         stats = pd.read_csv(self.run_dir / 'stats.csv')
         stats['epoch'] = stats.index
-        stats['train_diff'] = stats['train_acc@2'] - stats['train_acc@1']
-        stats['valid_diff'] = stats['valid_acc@2'] - stats['valid_acc@1']
         self.stats = bom.ColumnDataSource(stats)
 
         return self
 
     def _load_results(self) -> 'Visualisation':
-        self.train_results = hp.read_smth_results(self.run_dir / 'results_train.json')
-        self.valid_results = hp.read_smth_results(self.run_dir / 'results_valid.json')
+        try:
+            self.train_results = hp.read_smth_results(self.run_dir / 'results_train.tar')
+        except FileNotFoundError:
+            pass
+        try:
+            self.dev_results = hp.read_smth_results(self.run_dir / 'results_dev.tar')
+        except FileNotFoundError:
+            pass
+        try:
+            self.valid_results = hp.read_smth_results(self.run_dir / 'results_valid.tar')
+        except FileNotFoundError:
+            pass
 
         return self
 
     def _setup_bokeh(self) -> 'Visualisation':
         """Setup the current document and other one-time setups of bokeh."""
         self.doc = bop.curdoc()
-        self.tabs = []
 
         return self
 
@@ -128,15 +150,23 @@ class Visualisation(object):
         """Create a tab with a table of run options and a snippet of the data."""
         with open((self.run_dir / 'options.json').as_posix()) as file:
             details = json.load(file)
-        dataset_opts = dict(**details['train_ds_opts']['do'], **details['train_ds_opts']['so'])
+        train_ds_opts = dict(**details['train_ds_opts']['do'], **details['train_ds_opts']['so'])
+        dev_ds_opts = dict(**details['dev_ds_opts']['do'], **details['dev_ds_opts']['so'])
+        valid_ds_opts = dict(**details['valid_ds_opts']['do'], **details['valid_ds_opts']['so'])
         tables = [
             self.__create_table_source(details, 'Run Options'),
-            self.__create_table_source(details['model_opts'], 'Model'),
             self.__create_table_source(details['db_opts'], 'DataBunch'),
-            self.__create_table_source(details['train_dl_opts'], 'DataLoader'),
-            self.__create_table_source(dataset_opts, 'Dataset'),
+            self.__create_table_source(details['model_opts'], 'Model'),
+            self.__create_table_source(details['trainer_opts']['optimizer_opts'], 'Optimizer'),
+            self.__create_table_source(train_ds_opts, 'Train Dataset'),
+            self.__create_table_source(details['train_dl_opts'], 'Train DataLoader'),
+            self.__create_table_source(dev_ds_opts, 'Dev Dataset'),
+            self.__create_table_source(details['dev_dl_opts'], 'Dev DataLoader'),
+            self.__create_table_source(valid_ds_opts, 'Valid Dataset'),
+            self.__create_table_source(details['valid_dl_opts'], 'Valid DataLoader'),
             self.__create_table_source(details['trainer_opts'], 'Trainer'),
-            self.__create_table_source(details['trainer_opts']['optimizer_opts'], 'Optimizer')
+            self.__create_table_source(details['evaluator_opts'], 'Evaluator'),
+
         ]
         for i, (source, columns) in enumerate(tables):
             table = bom.DataTable(source=source, columns=columns, header_row=True, fit_columns=False,
@@ -147,7 +177,9 @@ class Visualisation(object):
                 [tables[0], tables[1]],
                 [tables[2], tables[3]],
                 [tables[4], tables[5]],
-                [bol.Spacer(), tables[6]]
+                [tables[6], tables[7]],
+                [tables[8], tables[9]],
+                [tables[10], tables[11]]
             ], sizing_mode='stretch_both')
         self.doc.add_root(layout)
 
@@ -162,39 +194,53 @@ class Visualisation(object):
         lkwargs = {
             'line_width': 3
         }
-        if self.run_opts.mode == 'discriminative':
-            ys = list(zip(['train_loss', 'valid_loss'], ['Train Loss', 'Valid Loss']))
+        if self.run_opts.mode == 'class':
+            ys = list(zip(['train_loss', 'dev_loss'], ['Train Loss', 'Dev Loss']))
             loss_plot = self.__create_line_plot('Loss Over Epochs', 'Loss', 'epoch', ys, fkwargs, lkwargs)
             fkwargs['y_range'] = (0, 1)
-            ys = list(zip(['train_acc@1', 'valid_acc@1'], ['Train Acc@1', 'Valid Acc@1']))
+            ys = list(zip(['train_acc@1', 'dev_acc@1'], ['Train Acc@1', 'Dev Acc@1']))
             top1_plot = self.__create_line_plot('Accuracy@1 Over Epochs', 'Acc@1', 'epoch', ys, fkwargs, lkwargs)
-            ys = list(zip(['train_acc@2', 'valid_acc@2'], ['Train Acc@2', 'Valid Acc@2']))
-            top2_plot = self.__create_line_plot('Accuracy@2 Over Epochs', 'Acc@2', 'epoch', ys, fkwargs, lkwargs)
-            ys = list(zip(['train_diff', 'valid_diff'], ['Train Acc Diff', 'Valid Acc Diff']))
-            fkwargs['y_range'] = (-1, 1)
-            diff_plot = self.__create_line_plot('Accuracy@2 - Accuracy@1 Over Epochs', 'Acc Diff', 'epoch', ys,
-                                                fkwargs, lkwargs)
-            grid = bol.gridplot([[top1_plot, top2_plot], [loss_plot, diff_plot]], sizing_mode='scale_width')
-        else:
-            ys = list(zip(['train_mse_loss', 'valid_mse_loss'], ['Train MSE Loss', 'Valid MSE Loss']))
+            ys = list(zip(['train_acc@5', 'dev_acc@5'], ['Train Acc@5', 'Dev Acc@5']))
+            top2_plot = self.__create_line_plot('Accuracy@2 Over Epochs', 'Acc@5', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_iou', 'dev_iou'], ['Train IoU', 'Dev IoU']))
+            iou_plot = self.__create_line_plot('IoU Over Epochs', 'Acc Diff', 'epoch', ys, fkwargs, lkwargs)
+            grid = bol.gridplot([
+                [top1_plot, top2_plot, iou_plot],
+                [loss_plot, bom.Spacer(), bom.Spacer()]
+            ], sizing_mode='scale_width')
+        elif self.run_opts.mode == 'ae':
+            ys = list(zip(['train_mse_loss', 'dev_mse_loss'], ['Train MSE Loss', 'Dev MSE Loss']))
             mse_loss_plot = self.__create_line_plot('MSE Loss Over Epochs', 'MSE Loss', 'epoch', ys, fkwargs, lkwargs)
-            ys = list(zip(['train_ce_loss', 'valid_ce_loss'], ['Train CE Loss', 'Valid CE Loss']))
+            ys = list(zip(['train_ce_loss', 'dev_ce_loss'], ['Train CE Loss', 'Dev CE Loss']))
             ce_loss_plot = self.__create_line_plot('CE Loss Over Epochs', 'CE Loss', 'epoch', ys, fkwargs, lkwargs)
-            ys = list(zip(['train_kld_loss', 'valid_kld_loss'], ['Train KLD Loss', 'Valid KLD Loss']))
+            fkwargs['y_range'] = (0, 1)
+            ys = list(zip(['train_acc@1', 'dev_acc@1'], ['Train Acc@1', 'Dev Acc@1']))
+            top1_plot = self.__create_line_plot('Accuracy@1 Over Epochs', 'Acc@1', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_acc@5', 'dev_acc@5'], ['Train Acc@5', 'Dev Acc@5']))
+            top2_plot = self.__create_line_plot('Accuracy@2 Over Epochs', 'Acc@5', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_iou', 'dev_iou'], ['Train IoU', 'Dev IoU']))
+            iou_plot = self.__create_line_plot('IoU Over Epochs', 'Acc Diff', 'epoch', ys, fkwargs, lkwargs)
+            grid = bol.gridplot([
+                [top1_plot, top2_plot, iou_plot],
+                [mse_loss_plot, ce_loss_plot, bom.Spacer()],
+            ], sizing_mode='scale_width')
+        else:
+            ys = list(zip(['train_mse_loss', 'dev_mse_loss'], ['Train MSE Loss', 'Dev MSE Loss']))
+            mse_loss_plot = self.__create_line_plot('MSE Loss Over Epochs', 'MSE Loss', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_ce_loss', 'dev_ce_loss'], ['Train CE Loss', 'Dev CE Loss']))
+            ce_loss_plot = self.__create_line_plot('CE Loss Over Epochs', 'CE Loss', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_kld_loss', 'dev_kld_loss'], ['Train KLD Loss', 'Dev KLD Loss']))
             kld_loss_plot = self.__create_line_plot('KLD Loss Over Epochs', 'KLD Loss', 'epoch', ys, fkwargs, lkwargs)
             fkwargs['y_range'] = (0, 1)
-            ys = list(zip(['train_acc@1', 'valid_acc@1'], ['Train Acc@1', 'Valid Acc@1']))
+            ys = list(zip(['train_acc@1', 'dev_acc@1'], ['Train Acc@1', 'Dev Acc@1']))
             top1_plot = self.__create_line_plot('Accuracy@1 Over Epochs', 'Acc@1', 'epoch', ys, fkwargs, lkwargs)
-            ys = list(zip(['train_acc@2', 'valid_acc@2'], ['Train Acc@2', 'Valid Acc@2']))
-            top2_plot = self.__create_line_plot('Accuracy@2 Over Epochs', 'Acc@2', 'epoch', ys, fkwargs, lkwargs)
-            ys = list(zip(['train_diff', 'valid_diff'], ['Train Acc Diff', 'Valid Acc Diff']))
-            fkwargs['y_range'] = (-1, 1)
-            diff_plot = self.__create_line_plot('Accuracy@2 - Accuracy@1 Over Epochs', 'Acc Diff', 'epoch', ys,
-                                                fkwargs, lkwargs)
+            ys = list(zip(['train_acc@5', 'dev_acc@5'], ['Train Acc@5', 'Dev Acc@5']))
+            top2_plot = self.__create_line_plot('Accuracy@2 Over Epochs', 'Acc@5', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_iou', 'dev_iou'], ['Train IoU', 'Dev IoU']))
+            iou_plot = self.__create_line_plot('IoU Over Epochs', 'Acc Diff', 'epoch', ys, fkwargs, lkwargs)
             grid = bol.gridplot([
-                [top1_plot, top2_plot],
-                [mse_loss_plot, ce_loss_plot],
-                [kld_loss_plot, diff_plot]
+                [top1_plot, top2_plot, iou_plot],
+                [mse_loss_plot, ce_loss_plot, kld_loss_plot],
             ], sizing_mode='scale_width')
 
         self.doc.add_root(grid)
@@ -212,13 +258,16 @@ class Visualisation(object):
         self.__on('train') \
             .__create_label_confusion().__render_label_confusion() \
             .__create_group_confusion().__render_group_confusion() \
+            .__on('dev') \
+            .__create_label_confusion().__render_label_confusion() \
+            .__create_group_confusion().__render_group_confusion() \
             .__on('valid') \
             .__create_label_confusion().__render_label_confusion() \
             .__create_group_confusion().__render_group_confusion() \
             .__render_confusion_page()
 
     def __on(self, split: str) -> 'Visualisation':
-        assert split in ['train', 'valid'], f'Unknown split: {split}.'
+        assert split in ['train', 'dev', 'valid'], f'Unknown split: {split}.'
         self.split = split
 
         return self
@@ -226,7 +275,7 @@ class Visualisation(object):
     def __sample_batch(self, n: int = 10) -> 'Visualisation':
         """Get a batch of videos from one of the validation split."""
         self.videos, self.labels = self.data_bunch.get_batch(n, 'valid')
-        self.predictions = [pipe.Prediction(self.valid_results.loc[video.meta.id]) for video in self.videos]
+        self.predictions = [pip.Prediction(self.valid_results.loc[video.meta.id]) for video in self.videos]
 
         return self
 
@@ -278,7 +327,9 @@ class Visualisation(object):
         return self
 
     def __render_embeddings(self):
+        """Render the plots of TSNE embeddings for train, dev, valid. Only show one legend since all the same."""
         train_embeddings = self.train_results[['proj_x1', 'proj_x2', 'template']]
+        dev_embeddings = self.dev_results[['proj_x1', 'proj_x2', 'template']]
         valid_embeddings = self.valid_results[['proj_x1', 'proj_x2', 'template']]
 
         tools = ['hover', 'save']
@@ -286,54 +337,69 @@ class Visualisation(object):
             ('Template', '@template'),
         ]
 
-        legend_items = []
+        # legend_items = []
         fig = bop.figure(title='Train Embeddings Projection', tooltips=tooltips, tools=tools)
         for i, template in enumerate(sorted(self.train_results.template.unique())):
             # noinspection PyUnresolvedReferences
             df = train_embeddings[train_embeddings['template'] == template]
             df = df[df.proj_x1.notnull() & df.proj_x2.notnull()]
             source = bom.ColumnDataSource(df)
-            glyph = fig.circle('proj_x1', 'proj_x2', source=source, size=10,
+            glyph = fig.circle('proj_x1', 'proj_x2', source=source, size=7,
                                fill_color=pal.Category20_20[i],
                                line_color=None)
-            legend_items.append((template, [glyph]))
-
+            # legend_items.append((template, [glyph]))
             if i == 19:
                 break
-        legend = bom.Legend(items=legend_items, location='center')
-        fig.add_layout(legend, 'below')
+        # legend = bom.Legend(items=legend_items, location='center')
+        # fig.add_layout(legend, 'below')
         self.train_embeddings_figure = fig
 
-        legend_items = []
+        # legend_items = []
+        fig = bop.figure(title='Dev Embeddings Projection', tooltips=tooltips, tools=tools)
+        for i, template in enumerate(sorted(self.dev_results.template.unique())):
+            # noinspection PyUnresolvedReferences
+            source = bom.ColumnDataSource(dev_embeddings[dev_embeddings['template'] == template])
+            glyph = fig.circle('proj_x1', 'proj_x2', source=source, size=7, fill_color=pal.Category20_20[i],
+                               line_color=None)
+            # legend_items.append((template, [glyph]))
+            if i == 19:
+                break
+        # legend = bom.Legend(items=legend_items, location='center')
+        # fig.add_layout(legend, 'below')
+        self.dev_embeddings_figure = fig
+
+        # legend_items = []
         fig = bop.figure(title='Valid Embeddings Projection', tooltips=tooltips, tools=tools)
         for i, template in enumerate(sorted(self.valid_results.template.unique())):
             # noinspection PyUnresolvedReferences
             source = bom.ColumnDataSource(valid_embeddings[valid_embeddings['template'] == template])
-            glyph = fig.circle('proj_x1', 'proj_x2', source=source, size=10,
-                               fill_color=pal.Category20_20[i],
+            glyph = fig.circle('proj_x1', 'proj_x2', source=source, size=7, fill_color=pal.Category20_20[i],
                                line_color=None)
-            legend_items.append((template, [glyph]))
-
+            # legend_items.append((template, [glyph]))
             if i == 19:
                 break
-        legend = bom.Legend(items=legend_items, location='center')
-        fig.add_layout(legend, 'below')
+
+        # legend = bom.Legend(items=legend_items, location='center')
+        # fig.add_layout(legend, 'below')
         self.valid_embeddings_figure = fig
 
         return self
 
     def __render_embeddings_page(self):
-        self.doc.add_root(bol.gridplot([[self.train_embeddings_figure, self.valid_embeddings_figure]],
-                                       sizing_mode='scale_width'))
+        row = [self.train_embeddings_figure, self.dev_embeddings_figure, self.valid_embeddings_figure]
+        self.doc.add_root(bol.gridplot([row], sizing_mode='scale_width'))
 
     def __create_label_confusion(self, normalize: bool = True) -> 'Visualisation':
         """Creates a stacked DataFrame representing the confusion matrix and loads it into a ColumnDataSource."""
         if self.split == 'train':
             results = self.train_results
+        elif self.split == 'dev':
+            results = self.dev_results
         else:
             results = self.valid_results
 
-        confusion = skm.confusion_matrix(results['template_id'].values, results['top1_pred'].values)
+        confusion = skm.confusion_matrix(results['template_id'].values.astype(np.int),
+                                         results['top1_pred'].values.astype(np.int))
         if normalize:
             confusion = confusion.astype(np.float) / confusion.astype(np.float).sum(axis=1)[:, np.newaxis]
         confusion = pd.DataFrame(confusion).stack().reset_index()
@@ -347,6 +413,8 @@ class Visualisation(object):
 
         if self.split == 'train':
             self.train_label_confusion = bom.ColumnDataSource(confusion)
+        elif self.split == 'dev':
+            self.dev_label_confusion = bom.ColumnDataSource(confusion)
         else:
             self.valid_label_confusion = bom.ColumnDataSource(confusion)
 
@@ -356,6 +424,8 @@ class Visualisation(object):
         """Render the confusion matrix as a bokeh heat map."""
         if self.split == 'train':
             label_confusion = self.train_label_confusion
+        elif self.split == 'dev':
+            label_confusion = self.dev_label_confusion
         else:
             label_confusion = self.valid_label_confusion
 
@@ -376,7 +446,7 @@ class Visualisation(object):
 
         fig = bop.figure(title=f'{self.split.capitalize()} Class Confusion',
                          x_range=x_range, y_range=y_range,
-                         x_axis_location="above", plot_width=712, plot_height=712,
+                         x_axis_location="above", width=712, height=712,
                          tools='hover,save', toolbar_location='below', tooltips=tooltips)
         fig.title.vertical_align = 'top'
         fig.grid.grid_line_color = None
@@ -398,6 +468,8 @@ class Visualisation(object):
 
         if self.split == 'train':
             self.train_label_confusion_fig = fig
+        elif self.split == 'dev':
+            self.dev_label_confusion_fig = fig
         else:
             self.valid_label_confusion_fig = fig
 
@@ -407,6 +479,8 @@ class Visualisation(object):
         """Creates a stacked DataFrame representing the confusion matrix and loads it into a ColumnDataSource."""
         if self.split == 'train':
             results = self.train_results[['template_id', 'top2_pred_1', 'top2_pred_2']]
+        elif self.split == 'dev':
+            results = self.dev_results[['template_id', 'top2_pred_1', 'top2_pred_2']]
         else:
             results = self.valid_results[['template_id', 'top2_pred_1', 'top2_pred_2']]
         self.lid2gid = self.label2gid[['id']] \
@@ -426,17 +500,11 @@ class Visualisation(object):
         confusion.columns = ['Ground Truth', 'Prediction', 'Overlap']
         confusion['Ground Truth'] = confusion['Ground Truth'].map(str)
         confusion['Prediction'] = confusion['Prediction'].map(str)
-        # confusion = confusion \
-        #     .join(self.group_id2group_label['label'], on='Ground Truth') \
-        #     .drop(labels=['Ground Truth'], axis=1) \
-        #     .rename(columns={'label': 'Ground Truth'})
-        # confusion = confusion \
-        #     .join(self.group_id2group_label['label'], on='Prediction') \
-        #     .drop(labels=['Prediction'], axis=1) \
-        #     .rename(columns={'label': 'Prediction'})
 
         if self.split == 'train':
             self.train_group_confusion = bom.ColumnDataSource(confusion)
+        elif self.split == 'dev':
+            self.dev_group_confusion = bom.ColumnDataSource(confusion)
         else:
             self.valid_group_confusion = bom.ColumnDataSource(confusion)
 
@@ -446,6 +514,8 @@ class Visualisation(object):
         """Render the confusion matrix as a bokeh heat map."""
         if self.split == 'train':
             group_confusion = self.train_group_confusion
+        elif self.split == 'dev':
+            group_confusion = self.dev_group_confusion
         else:
             group_confusion = self.valid_group_confusion
         if normalize:
@@ -466,7 +536,7 @@ class Visualisation(object):
 
         fig = bop.figure(title=f'{self.split.capitalize()} Super Class Confusion',
                          x_range=x_range, y_range=y_range,
-                         x_axis_location="above", plot_width=712, plot_height=712,
+                         x_axis_location="above", width=356, height=712,
                          tools='hover,save', toolbar_location='below', tooltips=tooltips)
         fig.title.vertical_align = 'top'
         fig.grid.grid_line_color = None
@@ -487,6 +557,8 @@ class Visualisation(object):
 
         if self.split == 'train':
             self.train_group_confusion_fig = fig
+        elif self.split == 'dev':
+            self.dev_group_confusion_fig = fig
         else:
             self.valid_group_confusion_fig = fig
 
@@ -504,11 +576,13 @@ class Visualisation(object):
 
     def __render_confusion_page(self):
         self.doc.add_root(
-            bol.layout([[self.valid_label_confusion_fig, self.valid_group_confusion_fig]], sizing_mode='fixed'))
-        self.doc.add_root(
             bol.layout([[self.train_label_confusion_fig, self.train_group_confusion_fig]], sizing_mode='fixed'))
+        self.doc.add_root(
+            bol.layout([[self.dev_label_confusion_fig, self.dev_group_confusion_fig]], sizing_mode='fixed'))
+        self.doc.add_root(
+            bol.layout([[self.valid_label_confusion_fig, self.valid_group_confusion_fig]], sizing_mode='fixed'))
 
-    def _on_toggle_click(self, event):
+    def _on_toggle_click(self, _):
         if self.toggle.active:
             self.toggle.label = 'Rendering'
             self.toggle.button_type = 'success'

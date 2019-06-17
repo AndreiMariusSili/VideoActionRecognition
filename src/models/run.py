@@ -1,3 +1,4 @@
+import copy
 import csv
 import json
 import math
@@ -15,15 +16,17 @@ from torch import cuda, distributed, nn, optim
 import constants as ct
 import helpers as hp
 import models.engine as me
-import models.options as mo
-import pipeline as pipe
+import options.model_options as mo
+import pipeline.smth.databunch as smth
 from env import logging
 
 
 class Run(object):
+    opts: mo.RunOptions
     rank: int
     word_size: int
     run_dir: pl.Path
+    cut: str
     logger: logging.Logger
     device: Any
     notification_sent: bool
@@ -37,7 +40,7 @@ class Run(object):
     criterion: nn.CrossEntropyLoss
     optimizer: Union[th.optim.Adam, th.optim.SGD, th.optim.RMSprop]
     lr_scheduler: optim.lr_scheduler.ReduceLROnPlateau
-    data_bunch: pipe.SmthDataBunch
+    data_bunch: smth.SmthDataBunch
     valid_metrics: Dict[str, Any]
     trainer: engine.Engine
     evaluator: engine.Engine
@@ -47,21 +50,32 @@ class Run(object):
     iter_timer: handlers.Timer
 
     def __init__(self, opts: mo.RunOptions):
-        self.rank, self.world_size = self._init_distributed()
-        self.run_dir = self._init_record(opts)
-        self.logger = self._init_logging()
-        self._log(f'Initializing run {opts.name}.')
-        self.device = self._init_device()
-
-        assert opts.mode in ['discriminative', 'variational']
+        assert opts.mode in ['class', 'ae', 'vae']
 
         self.notification_sent = False
-        self.name = opts.name
+        if opts.mode == 'class':
+            self.name = opts.name
+        elif opts.mode == 'ae':
+            self.name = f'{opts.name}@' \
+                f'{opts.trainer_opts.criterion_opts.mse_factor}_' \
+                f'{opts.trainer_opts.criterion_opts.ce_factor}'
+        else:
+            self.name = f'{opts.name}@' \
+                f'{opts.trainer_opts.criterion_opts.mse_factor}_' \
+                f'{opts.trainer_opts.criterion_opts.ce_factor}_' \
+                f'{opts.trainer_opts.criterion_opts.kld_factor}'
         self.mode = opts.mode
         self.resume = opts.resume
         self.epochs = opts.trainer_opts.epochs
         self.patience = opts.patience
         self.log_interval = opts.log_interval
+        self.opts = copy.deepcopy(opts)
+
+        self.rank, self.world_size = self._init_distributed()
+        self.run_dir, self.cut = self._init_record(opts)
+        self.logger = self._init_logging()
+        self._log(f'Initializing run {opts.name}.')
+        self.device = self._init_device()
 
         self.model = self._init_model(opts.model, opts.model_opts)
         self._log(self.model)
@@ -75,7 +89,7 @@ class Run(object):
         self._log(self.data_bunch)
 
         self.train_metrics = opts.trainer_opts.metrics
-        self.valid_metrics = opts.evaluator_opts.metrics
+        self.dev_metrics = opts.evaluator_opts.metrics
         self.trainer, self.evaluator = self._init_trainer_evaluator()
         train_examples = len(self.data_bunch.train_set)
 
@@ -97,14 +111,16 @@ class Run(object):
             world_size = 1
         return rank, world_size
 
-    def _init_record(self, opts: mo.RunOptions) -> pl.Path:
+    def _init_record(self, opts: mo.RunOptions) -> Tuple[pl.Path, str]:
         """Create the run directory and store the run options."""
-        run_dir = ct.SMTH_RUN_DIR / opts.name
+        cut = f'__{self.name.split("@").pop(0).split("_").pop()}'
+        run_dir = ct.SMTH_RUN_DIR / cut / self.name
+
         os.makedirs(run_dir.as_posix(), exist_ok=True)
         with open((run_dir / 'options.json').as_posix(), 'w') as file:
             json.dump(dc.asdict(opts), file, indent=True, sort_keys=True, default=str)
 
-        return run_dir
+        return run_dir, cut
 
     def _init_logging(self, ):
         """Get a logger that outputs to console and file. Only log messages if on the main process."""
@@ -131,7 +147,11 @@ class Run(object):
         model = model(**dc.asdict(opts))
         model.to(self.device)
         if self.resume:
-            model_path = glob((self.run_dir / 'latest_model_*').as_posix()).pop()
+            latest_models = glob((self.run_dir / 'latest_model_*.pth').as_posix())
+            if len(latest_models) > 1:
+                raise ValueError('More than one latest model available. Remove old versions.')
+            
+            model_path = latest_models.pop()
             self._log(f'Loading model from {model_path}.')
             model.load_state_dict(th.load(model_path, map_location=self.device))
         if distributed.is_available():
@@ -158,9 +178,9 @@ class Run(object):
         """Initialize a LR scheduler that reduces the LR when there was no improvement for some epochs."""
         lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,
                                                             mode='max',
-                                                            factor=0.1,
-                                                            patience=self.patience // 2,
-                                                            verbose=self.rank == 0)
+                                                            factor=0.5,
+                                                            patience=ct.LR_PATIENCE,
+                                                            verbose=True)
         if self.resume:
             lr_scheduler_path = glob((self.run_dir / 'latest_lr_scheduler_*').as_posix()).pop()
             self._log(f'Loading LR scheduler from {lr_scheduler_path}.')
@@ -168,32 +188,37 @@ class Run(object):
 
         return lr_scheduler
 
-    def _init_data_bunch(self, opts: mo.RunOptions) -> pipe.SmthDataBunch:
+    def _init_data_bunch(self, opts: mo.RunOptions) -> smth.SmthDataBunch:
         # flag use of distributed sampler
         opts.db_opts.distributed = self.world_size > 1
 
         # make sure batch and workers are distributed well across worlds.
         opts.train_dl_opts.batch_size = opts.train_dl_opts.batch_size // self.world_size
         opts.train_dl_opts.num_workers = opts.train_dl_opts.num_workers // self.world_size
+        opts.dev_dl_opts.batch_size = opts.dev_dl_opts.batch_size // self.world_size
+        opts.dev_dl_opts.num_workers = opts.dev_dl_opts.num_workers // self.world_size
         opts.valid_dl_opts.batch_size = opts.valid_dl_opts.batch_size // self.world_size
         opts.valid_dl_opts.num_workers = opts.valid_dl_opts.num_workers // self.world_size
 
-        return opts.data_bunch(opts.db_opts,
-                               opts.train_ds_opts,
-                               opts.valid_ds_opts,
-                               opts.train_dl_opts,
-                               opts.valid_dl_opts)
+        return opts.data_bunch(db_opts=opts.db_opts,
+                               train_ds_opts=opts.train_ds_opts,
+                               dev_ds_opts=opts.dev_ds_opts,
+                               valid_ds_opts=opts.valid_ds_opts,
+                               train_dl_opts=opts.train_dl_opts,
+                               dev_dl_opts=opts.dev_dl_opts,
+                               valid_dl_opts=opts.valid_dl_opts)
 
     def _init_trainer_evaluator(self) -> Tuple[engine.Engine, engine.Engine]:
         """Initialize the trainer and evaluator engines."""
-        if self.mode == 'discriminative':
-            trainer = me.create_discriminative_trainer(self.model, self.optimizer, self.criterion,
-                                                       self.train_metrics, self.device, True)
-            evaluator = me.create_discriminative_evaluator(self.model, self.valid_metrics, self.device, True)
+        if self.mode == 'class':
+            trainer = me.create_cls_trainer(self.model, self.optimizer, self.criterion, self.train_metrics, self.device)
+            evaluator = me.create_cls_evaluator(self.model, self.dev_metrics, self.device)
+        elif self.mode == 'ae':
+            trainer = me.create_ae_trainer(self.model, self.optimizer, self.criterion, self.train_metrics, self.device)
+            evaluator = me.create_ae_evaluator(self.model, self.dev_metrics, self.device)
         else:
-            trainer = me.create_variational_trainer(self.model, self.optimizer, self.criterion,
-                                                    self.train_metrics, self.device, True)
-            evaluator = me.create_variational_evaluator(self.model, self.valid_metrics, self.device, True)
+            trainer = me.create_vae_trainer(self.model, self.optimizer, self.criterion, self.train_metrics, self.device)
+            evaluator = me.create_vae_evaluator(self.model, self.dev_metrics, self.device)
 
         return trainer, evaluator
 
@@ -232,7 +257,7 @@ class Run(object):
         best_checkpoint_handler = handlers.ModelCheckpoint(dirname=self.run_dir.as_posix(), filename_prefix='best',
                                                            n_saved=1, require_empty=require_empty,
                                                            save_as_state_dict=True,
-                                                           score_function=self._acc_2, score_name='acc@2')
+                                                           score_function=self._acc_1, score_name='acc@1')
         checkpoint_args = {
             'model': self.model.module if hasattr(self.model, 'module') else self.model,
             'optimizer': self.optimizer,
@@ -252,21 +277,31 @@ class Run(object):
     def _init_early_stopping_handler(self) -> None:
         """Initialize a handler that will stop the engine run if no improvement in accuracy@2 has happened for a
         number of epochs."""
-        early_stopper = handlers.EarlyStopping(patience=self.patience, score_function=self._acc_2, trainer=self.trainer)
+        early_stopper = handlers.EarlyStopping(patience=self.patience, score_function=self._acc_1, trainer=self.trainer)
         self.evaluator.add_event_handler(engine.Events.COMPLETED, early_stopper)
 
     def _init_stats_recorder(self) -> Tuple[TextIO, csv.DictWriter]:
         """Open a file and initialize a dict writer to persist training statistics."""
-        if self.mode == 'discriminative':
-            fieldnames = ['train_loss', 'valid_loss',
-                          'train_acc@1', 'valid_acc@1',
-                          'train_acc@2', 'valid_acc@2']
+        if self.mode == 'class':
+            fieldnames = [
+                'train_acc@1', 'dev_acc@1',
+                'train_acc@5', 'dev_acc@5',
+                'train_iou', 'dev_iou',
+                'train_loss', 'dev_loss',
+            ]
+        elif self.mode == 'ae':
+            fieldnames = [
+                'train_acc@1', 'train_acc@5', 'train_iou',
+                'dev_acc@1', 'dev_acc@5', 'dev_iou',
+                'train_mse_loss', 'train_ce_loss', 'train_total_loss',
+                'dev_mse_loss', 'dev_ce_loss', 'dev_total_loss'
+            ]
         else:
             fieldnames = [
-                'train_acc@1', 'train_acc@2',
-                'valid_acc@1', 'valid_acc@2',
+                'train_acc@1', 'train_acc@5', 'train_iou',
+                'dev_acc@1', 'dev_acc@5', 'dev_iou',
                 'train_mse_loss', 'train_ce_loss', 'train_kld_loss', 'train_total_loss',
-                'valid_mse_loss', 'valid_ce_loss', 'valid_kld_loss', 'valid_total_loss',
+                'dev_mse_loss', 'dev_ce_loss', 'dev_kld_loss', 'dev_total_loss',
             ]
         csv_file = open((self.run_dir / 'stats.csv').as_posix(), 'a+')
         csv_writer = csv.DictWriter(csv_file, fieldnames)
@@ -282,8 +317,6 @@ class Run(object):
                 state = json.load(file)
                 _engine.state.iteration = state['iteration']
                 _engine.state.epoch = state['epoch']
-        # else:
-        #     self._evaluate(_engine, True)
 
     def _on_training_completed(self, _engine: engine.Engine) -> None:
         """Event handler for end of training. Sends slack notification."""
@@ -291,10 +324,12 @@ class Run(object):
             self.logger.info('Training Completed. Sending notification.')
             text = f'Finished training job.'
             train_acc_1 = round(self.trainer.state.metrics["acc@1"], 4)
-            valid_acc_1 = round(self.evaluator.state.metrics["acc@1"], 4)
-            train_acc_2 = round(self.trainer.state.metrics["acc@2"], 4)
-            valid_acc_2 = round(self.evaluator.state.metrics["acc@2"], 4)
-            if self.mode == 'discriminative':
+            dev_acc_1 = round(self.evaluator.state.metrics["acc@1"], 4)
+            train_acc_5 = round(self.trainer.state.metrics["acc@5"], 4)
+            dev_acc_5 = round(self.evaluator.state.metrics["acc@5"], 4)
+            train_iou = round(self.trainer.state.metrics["iou"], 4)
+            dev_iou = round(self.evaluator.state.metrics["iou"], 4)
+            if self.mode == 'class':
                 train_loss = round(self.trainer.state.metrics["loss"], 4)
                 valid_loss = round(self.evaluator.state.metrics["loss"], 4)
 
@@ -306,12 +341,17 @@ class Run(object):
                     },
                     {
                         'title': 'Accuracy@1 (Train / Valid)',
-                        'value': f'{train_acc_1} / {valid_acc_1}',
+                        'value': f'{train_acc_1} / {dev_acc_1}',
                         'short': False
                     },
                     {
                         'title': 'Accuracy@2 (Train / Valid)',
-                        'value': f'{train_acc_2} / {valid_acc_2}',
+                        'value': f'{train_acc_5} / {dev_acc_5}',
+                        'short': False
+                    },
+                    {
+                        'title': 'IoU (Train / Valid)',
+                        'value': f'{train_iou} / {dev_iou}',
                         'short': False
                     },
                     {
@@ -320,13 +360,9 @@ class Run(object):
                         'short': False
                     },
                 ]
-            else:
+            elif self.mode == 'ae':
                 train_metrics = self.trainer.state.metrics
-                losses = [train_metrics["mse_loss"], train_metrics["ce_loss"], train_metrics["kld_loss"]]
-                train_loss = round(sum(losses), 4)
                 valid_metrics = self.evaluator.state.metrics
-                losses = [valid_metrics["mse_loss"], valid_metrics["ce_loss"], valid_metrics["kld_loss"]]
-                valid_loss = round(sum(losses), 4)
 
                 fields = [
                     {
@@ -336,12 +372,58 @@ class Run(object):
                     },
                     {
                         'title': 'Accuracy@1 (Train / Valid)',
-                        'value': f'{train_acc_1} / {valid_acc_1}',
+                        'value': f'{train_acc_1} / {dev_acc_1}',
                         'short': False
                     },
                     {
                         'title': 'Accuracy@2 (Train / Valid)',
-                        'value': f'{train_acc_2} / {valid_acc_2}',
+                        'value': f'{train_acc_5} / {dev_acc_5}',
+                        'short': False
+                    },
+                    {
+                        'title': 'IoU (Train / Valid)',
+                        'value': f'{train_iou} / {dev_iou}',
+                        'short': False
+                    },
+                    {
+                        'title': 'MSE Loss (Train / Valid)',
+                        'value': f'{round(train_metrics["mse_loss"], 4)} / {round(valid_metrics["mse_loss"], 4)}',
+                        'short': False
+                    },
+                    {
+                        'title': 'CE Loss (Train / Valid)',
+                        'value': f'{round(train_metrics["ce_loss"], 4)} / {round(valid_metrics["ce_loss"], 4)}',
+                        'short': False
+                    },
+                    {
+                        'title': 'Total Loss (Train / Valid)',
+                        'value': f'{round(train_metrics["total_loss"], 4)} / {round(valid_metrics["total_loss"], 4)}',
+                        'short': False
+                    },
+                ]
+            else:
+                train_metrics = self.trainer.state.metrics
+                valid_metrics = self.evaluator.state.metrics
+
+                fields = [
+                    {
+                        'title': 'Epoch',
+                        'value': self.trainer.state.epoch,
+                        'short': False
+                    },
+                    {
+                        'title': 'Accuracy@1 (Train / Valid)',
+                        'value': f'{train_acc_1} / {dev_acc_1}',
+                        'short': False
+                    },
+                    {
+                        'title': 'Accuracy@2 (Train / Valid)',
+                        'value': f'{train_acc_5} / {dev_acc_5}',
+                        'short': False
+                    },
+                    {
+                        'title': 'IoU (Train / Valid)',
+                        'value': f'{train_iou} / {dev_iou}',
                         'short': False
                     },
                     {
@@ -361,7 +443,7 @@ class Run(object):
                     },
                     {
                         'title': 'Total Loss (Train / Valid)',
-                        'value': f'{train_loss} / {valid_loss}',
+                        'value': f'{round(train_metrics["total_loss"], 4)} / {round(valid_metrics["total_loss"], 4)}',
                         'short': False
                     },
                 ]
@@ -379,16 +461,21 @@ class Run(object):
     def _on_epoch_completed(self, _engine: engine.Engine) -> None:
         """Event handler for end of epoch. Evaluates model on training and validation set. Schedules LR."""
         self._evaluate(_engine)
-        # self._schedule_lr()
+        self._schedule_lr()
 
     def _on_iteration_completed(self, _engine: engine.Engine) -> None:
         """Event handler for end of batch processing. Logs statistics once in a while."""
         iteration = (_engine.state.iteration - 1) % len(self.data_bunch.train_set) + 1
         if iteration % self.log_interval == 0:
-            if self.mode == 'discriminative':
+            if self.mode == 'class':
                 self._log(f'[Batch: {_engine.state.iteration:04d}/{self.iterations:04d}]'
                           f'[Iteration Time: {self.iter_timer.value():6.2f}s]'
                           f'[Batch Loss: {_engine.state.output[0]:8.4f}]')
+            elif self.mode == 'ae':
+                self._log(f'[Batch: {_engine.state.iteration:04d}/{self.iterations:04d}]'
+                          f'[Iteration Time: {self.iter_timer.value():6.2f}s]'
+                          f'[MSE Loss: {_engine.state.output[-2]:8.4f}]'
+                          f'[CE Loss: {_engine.state.output[-1]:8.4f}]')
             else:
                 self._log(f'[Batch: {_engine.state.iteration:04d}/{self.iterations:04d}]'
                           f'[Iteration Time: {self.iter_timer.value():6.2f}s]'
@@ -422,42 +509,59 @@ class Run(object):
 
         raise exception
 
-    def _evaluate(self, _engine: engine.Engine, skip_train: bool = False) -> None:
+    def _evaluate(self, _engine: engine.Engine) -> None:
         """Evaluate on train and validation set."""
         metrics = {}
-        if not skip_train:
-            self._log('EVALUATION TRAIN.')
 
-            for key, value in self.trainer.state.metrics.items():
-                metrics[f'train_{key}'] = value
-            if self.mode == 'discriminative':
-                msg = (f'[Acc@1: {metrics["train_acc@1"]:.4f}]'
-                       f'[Acc@2: {metrics["train_acc@2"]:.4f}]'
-                       f'[Loss: {metrics["train_loss"]:.4f}]')
-            else:
-                msg = (f'[Acc@1: {metrics["train_acc@1"]:.4f}]'
-                       f'[Acc@2: {metrics["train_acc@2"]:.4f}]'
-                       f'[MSE Loss: {metrics["train_mse_loss"]:.4f}]'
-                       f'[CE Loss: {metrics["train_ce_loss"]:.4f}]'
-                       f'[KLD Loss: {metrics["train_kld_loss"]:.4f}]'
-                       f'[Total Loss: {metrics["train_total_loss"]:.4f}]')
-            self._log(msg)
-
-        self._log('EVALUATION VALID.')
-        self.evaluator.run(self.data_bunch.valid_loader)
-        for key, value in self.evaluator.state.metrics.items():
-            metrics[f'valid_{key}'] = value
-        if self.mode == 'discriminative':
-            msg = (f'[Acc@1: {metrics["valid_acc@1"]:.4f}]'
-                   f'[Acc@2: {metrics["valid_acc@2"]:.4f}]'
-                   f'[Loss: {metrics["valid_loss"]:.4f}]')
+        self._log('EVALUATION TRAIN.')
+        for key, value in self.trainer.state.metrics.items():
+            metrics[f'train_{key}'] = value
+        if self.mode == 'class':
+            msg = (f'[Acc@1: {metrics["train_acc@1"]:.4f}]'
+                   f'[Acc@5: {metrics["train_acc@5"]:.4f}]'
+                   f'[IoU: {metrics["train_iou"]:.4f}]'
+                   f'[Loss: {metrics["train_loss"]:.4f}]')
+        elif self.mode == 'ae':
+            msg = (f'[Acc@1: {metrics["train_acc@1"]:.4f}]'
+                   f'[Acc@5: {metrics["train_acc@5"]:.4f}]'
+                   f'[IoU: {metrics["train_iou"]:.4f}]'
+                   f'[MSE Loss: {metrics["train_mse_loss"]:.4f}]'
+                   f'[CE Loss: {metrics["train_ce_loss"]:.4f}]'
+                   f'[Total Loss: {metrics["train_total_loss"]:.4f}]')
         else:
-            msg = (f'[Acc@1: {metrics["valid_acc@1"]:.4f}]'
-                   f'[Acc@2: {metrics["valid_acc@2"]:.4f}]'
-                   f'[MSE Loss: {metrics["valid_mse_loss"]:.4f}]'
-                   f'[CE Loss: {metrics["valid_ce_loss"]:.4f}]'
-                   f'[KLD Loss: {metrics["valid_kld_loss"]:.4f}]'
-                   f'[Total Loss: {metrics["valid_total_loss"]:.4f}]')
+            msg = (f'[Acc@1: {metrics["train_acc@1"]:.4f}]'
+                   f'[Acc@5: {metrics["train_acc@5"]:.4f}]'
+                   f'[IoU: {metrics["train_iou"]:.4f}]'
+                   f'[MSE Loss: {metrics["train_mse_loss"]:.4f}]'
+                   f'[CE Loss: {metrics["train_ce_loss"]:.4f}]'
+                   f'[KLD Loss: {metrics["train_kld_loss"]:.4f}]'
+                   f'[Total Loss: {metrics["train_total_loss"]:.4f}]')
+        self._log(msg)
+
+        self._log('EVALUATION DEV.')
+        self.evaluator.run(self.data_bunch.dev_loader)
+        for key, value in self.evaluator.state.metrics.items():
+            metrics[f'dev_{key}'] = value
+        if self.mode == 'class':
+            msg = (f'[Acc@1: {metrics["dev_acc@1"]:.4f}]'
+                   f'[Acc@5: {metrics["dev_acc@5"]:.4f}]'
+                   f'[IoU: {metrics["dev_iou"]:.4f}]'
+                   f'[Loss: {metrics["dev_loss"]:.4f}]')
+        elif self.mode == 'ae':
+            msg = (f'[Acc@1: {metrics["dev_acc@1"]:.4f}]'
+                   f'[Acc@5: {metrics["dev_acc@5"]:.4f}]'
+                   f'[IoU: {metrics["dev_iou"]:.4f}]'
+                   f'[MSE Loss: {metrics["dev_mse_loss"]:.4f}]'
+                   f'[CE Loss: {metrics["dev_ce_loss"]:.4f}]'
+                   f'[Total Loss: {metrics["dev_total_loss"]:.4f}]')
+        else:
+            msg = (f'[Acc@1: {metrics["dev_acc@1"]:.4f}]'
+                   f'[Acc@5: {metrics["dev_acc@5"]:.4f}]'
+                   f'[IoU: {metrics["dev_iou"]:.4f}]'
+                   f'[MSE Loss: {metrics["dev_mse_loss"]:.4f}]'
+                   f'[CE Loss: {metrics["dev_ce_loss"]:.4f}]'
+                   f'[KLD Loss: {metrics["dev_kld_loss"]:.4f}]'
+                   f'[Total Loss: {metrics["dev_total_loss"]:.4f}]')
         self._log(msg)
 
         # only write stats and state to file if on main process.
@@ -473,15 +577,19 @@ class Run(object):
 
     def _schedule_lr(self, ):
         """Take a scheduler step according to accuracy@2."""
-        self.lr_scheduler.step(self.evaluator.state.metrics['acc@2'])
+        self.lr_scheduler.step(self.evaluator.state.metrics['acc@1'])
 
     def _negative_val_loss(self, _engine: engine.Engine) -> float:
         """Return opposite val loss for model evaluation purposes."""
         return -round(_engine.state.metrics['loss'], 4)
 
+    def _acc_1(self, _engine: engine.Engine) -> float:
+        """Return accuracy@1 for model evaluation purposes."""
+        return round(_engine.state.metrics['acc@1'], 4)
+
     def _acc_2(self, _engine: engine.Engine) -> float:
         """Return accuracy@2 for model evaluation purposes."""
-        return round(_engine.state.metrics['acc@2'], 4)
+        return round(_engine.state.metrics['acc@5'], 4)
 
     def _log(self, msg: Any):
         """Log message. Flush file handler."""

@@ -2,8 +2,8 @@
 import torch as th
 from torch import nn
 
-from models import _common as cm
-from .. import options as mo
+from models import common as cm
+from options import model_options as mo
 
 
 class I3DClassifier(nn.Module):

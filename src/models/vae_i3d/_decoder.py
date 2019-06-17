@@ -5,7 +5,8 @@ import torch as th
 from torch import nn
 
 import constants as ct
-from models import _common as cm, options as mo
+from models import common as cm
+from options import model_options as mo
 
 
 class Normalize(nn.Module):

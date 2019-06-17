@@ -3,6 +3,7 @@ from typing import Any, Dict
 
 import env
 import jobs
+from options import job_options
 
 
 def parse_options(opts: str) -> Dict[str, Any]:
@@ -20,19 +21,18 @@ def main(args):
     """Parse arguments and start jobs."""
     env.logging.info('Running main script.')
     job, opts = args.job, parse_options(args.opts)
+    opts['resume'] = args.resume
     opts['local_rank'] = args.local_rank
     if job == 'create_dummy_set':
-        jobs.create_dummy_set(jobs.options.CreateDummySetOptions(**opts))
+        jobs.create_dummy_set(job_options.CreateDummySetOptions(**opts))
     elif job == 'prepro_set':
-        jobs.prepro_set(jobs.options.PreproSetOptions(**opts))
-    elif job == 'prepare_model':
-        jobs.prepare_model(opts)
+        jobs.prepro_set(job_options.PreproSetOptions(**opts))
     elif job == 'run_model':
-        jobs.run_model(jobs.options.ModelRunOptions(**opts))
+        jobs.run_model(job_options.ModelRunOptions(**opts))
     elif job == 'evaluate_model':
-        jobs.evaluate_model(jobs.options.ModelEvaluateOptions(**opts))
+        jobs.evaluate_model(job_options.ModelEvaluateOptions(**opts))
     elif job == 'visualise_model':
-        jobs.visualise_model(jobs.options.ModelVisualiseOptions(**opts))
+        jobs.visualise_model(job_options.ModelVisualiseOptions(**opts))
     else:
         raise ValueError(f'Unknown job: {job}.')
 
@@ -48,6 +48,7 @@ if __name__ == '__main__':
                         type=str,
                         help='Optional arguments to be passed to the job formatted as key1:value1,key2:value2',
                         default='')
+    parser.add_argument('-r', '--resume', type=bool, default=False)
     parser.add_argument('--local_rank', type=int, default=-1)
     arguments = parser.parse_args()
     main(arguments)
