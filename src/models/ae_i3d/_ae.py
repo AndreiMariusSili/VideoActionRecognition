@@ -30,7 +30,7 @@ class AEI3D(nn.Module):
     def _he_init(self):
         for module in self.modules():
             if isinstance(module, nn.Conv3d):
-                th.nn.init.kaiming_normal_(module.weight, mode='fan_in', nonlinearity='relu')
+                th.nn.init.kaiming_normal_(module.weight, mode='fan_out', nonlinearity='relu')
                 if module.bias is not None:
                     module.bias.data.zero_()
             elif isinstance(module, nn.BatchNorm3d):

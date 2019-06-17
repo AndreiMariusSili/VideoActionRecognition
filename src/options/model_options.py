@@ -93,6 +93,13 @@ class TADNOptions:
 
 
 @dc.dataclass
+class TARNOptions:
+    num_classes: int
+    time_steps: int
+    drop_rate: float
+
+
+@dc.dataclass
 class TrainerOptions:
     epochs: int
     optimizer: Any
@@ -117,7 +124,7 @@ class RunOptions:
     log_interval: int
     patience: int
     model: Any
-    model_opts: Union[LRCNOptions, I3DOptions, TADNOptions, AEI3DOptions, VAEI3DOptions]
+    model_opts: Union[LRCNOptions, I3DOptions, TADNOptions, TARNOptions, AEI3DOptions, VAEI3DOptions]
     data_bunch: Any
     db_opts: pio.DataBunchOptions
     train_ds_opts: pio.DataSetOptions

@@ -6,23 +6,22 @@ from torch import nn, optim
 import constants as ct
 import pipeline.smth.databunch as smth
 from jobs.specs.__dev._smth_dev import *
-from models import metrics, tadn
+from models import metrics, tarn
 from options import model_options
 
 train_dl_opts = copy.deepcopy(train_dl_opts)
 dev_dl_opts = copy.deepcopy(dev_dl_opts)
 valid_dl_opts = copy.deepcopy(valid_dl_opts)
-train_dl_opts.batch_size = 128
-dev_dl_opts.batch_size = 128
-valid_dl_opts.batch_size = 128
+train_dl_opts.batch_size = 256
+dev_dl_opts.batch_size = 256
+valid_dl_opts.batch_size = 256
 
 ########################################################################################################################
 # MODEL AND OPTIMIZER
 ########################################################################################################################
-model_opts = model_options.TADNOptions(
+model_opts = model_options.TARNOptions(
     num_classes=ct.SMTH_NUM_CLASSES,
     time_steps=4,
-    growth_rate=128,
     drop_rate=0.5,
 )
 optimizer_opts = model_options.AdamOptimizerOptions(
@@ -54,13 +53,13 @@ evaluator_opts = model_options.EvaluatorOptions(
 ########################################################################################################################
 # RUN
 ########################################################################################################################
-tadn_smth_dev = model_options.RunOptions(
-    name='tadn_smth_dev',
+tarn_smth_dev = model_options.RunOptions(
+    name='tarn_smth_dev',
     mode='class',
     resume=False,
     log_interval=1,
-    patience=25,
-    model=tadn.TimeAlignedDenseNet,
+    patience=50,
+    model=tarn.TimeAlignedResNet,
     model_opts=model_opts,
     data_bunch=smth.SmthDataBunch,
     db_opts=db_opts,

@@ -6,6 +6,17 @@ import jobs
 from options import job_options
 
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0', ""):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 def parse_options(opts: str) -> Dict[str, Any]:
     """Parse an options string from key1:value1,key2:value2 to dict representation."""
     pairs = opts.strip().split(',')
@@ -48,7 +59,7 @@ if __name__ == '__main__':
                         type=str,
                         help='Optional arguments to be passed to the job formatted as key1:value1,key2:value2',
                         default='')
-    parser.add_argument('-r', '--resume', type=bool, default=False)
+    parser.add_argument('-r', '--resume', type=str2bool, nargs='?', const=False, default=False)
     parser.add_argument('--local_rank', type=int, default=-1)
     arguments = parser.parse_args()
     main(arguments)
