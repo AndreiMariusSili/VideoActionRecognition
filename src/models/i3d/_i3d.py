@@ -53,7 +53,7 @@ class I3D(nn.Module):
         # 1024 x 1 x 7 x 7
         self.avg_pool = nn.AdaptiveAvgPool3d((1, 1, 1))
         # 1024 x 1 x 1 x 1
-        self.dropout = nn.Dropout(dropout_prob)
+        self.dropout = nn.Dropout3d(dropout_prob)
         # 1024 x 1 x 1 x 1
         opts = mo.Unit3DOptions(in_channels=1024, out_channels=self.num_classes, kernel_size=(1, 1, 1),
                                 activation='none', use_bias=True, use_bn=False)
@@ -75,7 +75,8 @@ class I3D(nn.Module):
 
     def forward(self, _in: th.Tensor) -> th.tensor:
         _in = _in.transpose(1, 2)
-        bs = _in.shape[0]
+        b = _in.shape[0]
+
         out = self.conv3d_1a_7x7(_in)
         out = self.maxPool3d_2a_3x3(out)
         out = self.conv3d_2b_1x1(out)
@@ -94,7 +95,7 @@ class I3D(nn.Module):
         out = self.mixed_5c(out)
         out = self.avg_pool(out)
 
-        embeds = out.view(bs, -1)
+        embeds = out.reshape(b, -1)
 
         out = self.dropout(out)
         out = self.conv3d_0c_1x1(out)
@@ -104,9 +105,6 @@ class I3D(nn.Module):
 
 
 if __name__ == '__main__':
-    import os
-
-    os.chdir('/Users/Play/Code/AI/master-thesis/src')
     i3d = I3D(10)
     print(i3d)
     __in = th.randn((1, 4, 3, 224, 224), dtype=th.float)

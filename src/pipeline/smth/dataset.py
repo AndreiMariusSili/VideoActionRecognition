@@ -28,7 +28,7 @@ class SmthDataset(thd.Dataset):
     def __init__(self, data_opts: pio.DataOptions, sampling_opts: pio.SamplingOptions):
         """Initialize a smth-smth dataset from the DataFrame containing meta information."""
         assert 0.0 <= data_opts.cut <= 1.0, f'Cut should be between 0.0, and 1.0. Received: {data_opts.cut}.'
-        assert data_opts.setting in ['train', 'valid'], f'Unknown setting: {data_opts.setting}.'
+        assert data_opts.setting in ['train', 'eval'], f'Unknown setting: {data_opts.setting}.'
 
         self.presenting = False
         self.evaluating = False

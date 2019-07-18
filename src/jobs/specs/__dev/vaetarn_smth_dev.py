@@ -4,23 +4,26 @@ from torch import optim
 import constants as ct
 import pipeline.smth.databunch as smth
 from jobs.specs.__dev._smth_dev import *
-from models import ae_i3d, criterion, metrics
+from models import criterion, metrics, vae_tarn
 from options import model_options
 
 # train_dl_opts = copy.deepcopy(train_dl_opts)
 # dev_dl_opts = copy.deepcopy(dev_dl_opts)
 # valid_dl_opts = copy.deepcopy(valid_dl_opts)
-# train_dl_opts.batch_size = 128
-# dev_dl_opts.batch_size = 128
-# valid_dl_opts.batch_size = 128
+# train_dl_opts.batch_size = 256
+# dev_dl_opts.batch_size = 256
+# valid_dl_opts.batch_size = 256
 
 ########################################################################################################################
 # MODEL AND OPTIMIZER
 ########################################################################################################################
-model_opts = model_options.AEI3DOptions(
-    embed_planes=1024,
-    dropout_prob=0.0,
-    num_classes=ct.SMTH_NUM_CLASSES
+model_opts = model_options.VAETARNOptions(
+    time_steps=4,
+    drop_rate=0.0,
+    num_classes=ct.SMTH_NUM_CLASSES,
+    vote_type='soft',
+    encoder_planes=(16, 32, 64, 128, 256),
+    decoder_planes=(256, 128, 64, 32, 16),
 )
 optimizer_opts = model_options.AdamOptimizerOptions(
     lr=0.001
@@ -28,46 +31,53 @@ optimizer_opts = model_options.AdamOptimizerOptions(
 ########################################################################################################################
 # TRAINER AND EVALUATOR
 ########################################################################################################################
-ce_loss = metrics.AverageMeter(output_transform=lambda x: (x[-2], x[0].shape[0]))
-mse_loss = metrics.AverageMeter(output_transform=lambda x: (x[-1], x[0].shape[0]))
-total_loss = im.MetricsLambda(lambda x, y: x + y, ce_loss, mse_loss)
+ce_loss = metrics.AverageMeter(output_transform=lambda x: (x[-4], x[0].shape[0]))
+mse_loss = metrics.AverageMeter(output_transform=lambda x: (x[-3], x[0].shape[0]))
+kld_loss = metrics.AverageMeter(output_transform=lambda x: (x[-2], x[0].shape[0]))
+kld_factor = metrics.AverageMeter(output_transform=lambda x: (x[-1], 1))
+total_loss = im.MetricsLambda(lambda x, y, z: x + y + z, ce_loss, mse_loss, kld_loss)
+
 trainer_opts = model_options.TrainerOptions(
     epochs=50,
     optimizer=optim.Adam,
     optimizer_opts=optimizer_opts,
-    criterion=criterion.AECriterion,
+    criterion=criterion.VAECriterion,
     metrics={
-        'acc@1': im.Accuracy(output_transform=lambda x: (x[1], x[4])),
-        'acc@5': im.TopKCategoricalAccuracy(k=5, output_transform=lambda x: (x[1], x[4])),
-        'iou': metrics.MultiLabelIoU(lambda x: (x[1], x[4])),
+        'acc@1': im.Accuracy(output_transform=lambda x: (x[1].squeeze(dim=1), x[6])),
+        'acc@5': im.TopKCategoricalAccuracy(k=5, output_transform=lambda x: (x[1].squeeze(dim=1), x[6])),
+        'iou': metrics.MultiLabelIoU(lambda x: (x[1].squeeze(dim=1), x[6])),
         'ce_loss': ce_loss,
         'mse_loss': mse_loss,
-        'total_loss': total_loss
+        'kld_loss': kld_loss,
+        'total_loss': total_loss,
+        'kld_factor': kld_factor,
     }
 )
-ae_loss_metric = metrics.AELoss(criterion.AECriterion())
-total_loss = im.MetricsLambda(lambda x: sum(x), ae_loss_metric)
+
+vae_loss_metric = metrics.VAELoss(criterion.VAECriterion())
+total_loss = im.MetricsLambda(lambda x: sum(x), vae_loss_metric)
 evaluator_opts = model_options.EvaluatorOptions(
     metrics={
-        'acc@1': im.Accuracy(output_transform=lambda x: (x[1], x[4])),
-        'acc@5': im.TopKCategoricalAccuracy(k=5, output_transform=lambda x: (x[1], x[4])),
-        'iou': metrics.MultiLabelIoU(lambda x: (x[1], x[4])),
-        'ce_loss': ae_loss_metric[0],
-        'mse_loss': ae_loss_metric[1],
+        'acc@1': im.Accuracy(output_transform=lambda x: (x[-1], x[-2])),
+        'acc@5': im.TopKCategoricalAccuracy(k=5, output_transform=lambda x: (x[-1], x[-2])),
+        'iou': metrics.MultiLabelIoU(output_transform=lambda x: (x[-1], x[-2])),
+        'ce_loss': vae_loss_metric[0],
+        'mse_loss': vae_loss_metric[1],
+        'kld_loss': vae_loss_metric[2],
         'total_loss': total_loss,
     }
 )
 ########################################################################################################################
 # RUN
 ########################################################################################################################
-aei3d_smth_dev = model_options.RunOptions(
-    name='aei3d_smth_dev',
-    mode='ae',
+vaetarn_smth_dev = model_options.RunOptions(
+    name='vaetarn_smth_dev',
+    mode='vae',
     resume=False,
     debug=False,
     log_interval=1,
     patience=50,
-    model=ae_i3d.AEI3D,
+    model=vae_tarn.VAETimeAlignedResNet,
     model_opts=model_opts,
     data_bunch=smth.SmthDataBunch,
     db_opts=db_opts,

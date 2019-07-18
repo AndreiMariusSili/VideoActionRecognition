@@ -7,7 +7,7 @@ from options import model_options as mo
 
 
 class I3DEncoder(nn.Module):
-    def __init__(self, embed_size: int, dropout_prob: float = 0.0, name: str = 'i3d_encoder'):
+    def __init__(self, embed_size: int, name: str = 'i3d_encoder'):
         super(I3DEncoder, self).__init__()
         self.embed_size = embed_size
         self.name = name
@@ -49,14 +49,9 @@ class I3DEncoder(nn.Module):
         # 832 x 1 x 7 x 7
         self.mixed_5c = cm.Mixed(832, [384, 192, 384, 48, 128, 128], [1, 1, 1, 1, 1, 1, 1])
         # 1024 x 1 x 7 x 7
-        self.avg_pool = nn.AdaptiveAvgPool3d((1, 1, 1))
-        # 1024 x 1 x 1 x 1
-        self.dropout = nn.Dropout(dropout_prob)
-        # 1024 x 1 x 1 x 1
         opts = mo.Unit3DOptions(out_channels=self.embed_size, in_channels=1024, kernel_size=(1, 1, 1), stride=(1, 1, 1),
-                                activation='none', padding='VALID', use_bias=True, use_bn=False)
+                                activation='none', padding='VALID', use_bias=False, use_bn=False)
         self.embed = cm.Unit3D(opts)
-        # 1024 x 1 x 1 x 1
 
     def forward(self, _in: th.Tensor) -> th.tensor:
         _out = _in.transpose(1, 2)
@@ -72,7 +67,7 @@ if __name__ == '__main__':
     import os
 
     os.chdir('/Users/Play/Code/AI/master-thesis/src')
-    encoder = I3DEncoder(1024, 0.0, 'i3d_encoder')
+    encoder = I3DEncoder(1024, 'i3d_encoder')
     print(encoder)
     __in = th.randn((1, 4, 3, 224, 224), dtype=th.float)
     _embeds = encoder(__in)

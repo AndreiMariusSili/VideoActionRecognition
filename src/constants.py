@@ -43,13 +43,10 @@ IMAGE_NET_STDS = (0.229, 0.224, 0.225)
 STYLES = pl.Path(os.path.join(ROOT, 'src', 'assets', 'styles.css'))
 
 NUM_DEVICES = cuda.device_count() if cuda.device_count() > 0 else 1
-
 TSNE_SAMPLE_SIZE = 200
-
 VAE_NUM_SAMPLES = 10
-
 RUN_RESULTS_INTERVAL = 10
-
 LR_PATIENCE = 10
-
 RANDOM_STATE = 0
+KLD_STEP_INTERVAL = 5
+KLD_STEP_SIZE = 0.11

@@ -1,11 +1,11 @@
 import copy
+import dataclasses as dc
 import pathlib as pl
 import pickle as pkl
 import traceback
 from glob import glob
 from typing import Any, List, Tuple
 
-import dataclasses as dc
 import numpy as np
 import pandas as pd
 import sklearn.manifold as skm
@@ -35,7 +35,9 @@ class Evaluation(object):
     run_opts: mo.RunOptions
     rank: int
     world_size: int
-    device: object
+    main_proc: bool
+    distributed: bool
+    device: Any
     best_ckpt: str
     model: nn.Module
     data_bunch: smth.SmthDataBunch
@@ -51,23 +53,15 @@ class Evaluation(object):
         self.dev_metrics = spec.evaluator_opts.metrics
         self.valid_metrics = spec.evaluator_opts.metrics
 
-        if self.mode == 'class':
-            self.name = spec.name
-        elif self.mode == 'ae':
-            self.name = f'{spec.name}@' \
-                f'{spec.trainer_opts.criterion_opts.mse_factor}_' \
-                f'{spec.trainer_opts.criterion_opts.ce_factor}'
-        else:
-            self.name = f'{spec.name}@' \
-                f'{spec.trainer_opts.criterion_opts.mse_factor}_' \
-                f'{spec.trainer_opts.criterion_opts.ce_factor}_' \
-                f'{spec.trainer_opts.criterion_opts.kld_factor}'
+        self.name = spec.name
 
-        self.cut = f'__{self.name.split("@").pop(0).split("_").pop()}'
+        self.cut = f'__{self.name.split("_").pop()}'
         self.run_dir = ct.SMTH_RUN_DIR / self.cut / self.name
         self.run_opts = copy.deepcopy(spec)
 
-        self.rank, self.world_size = self._init_distributed()
+        self.rank, self.world_size, self.main_proc, self.distributed = self._init_distributed()
+        self.logger = self._init_logging()
+
         self.device = self._init_device()
         self.best_ckpt = self._get_best_ckpt()
         self.model = self._init_model()
@@ -93,9 +87,8 @@ class Evaluation(object):
                                                      'dev_acc@1', 'dev_acc@5', 'dev_iou',
                                                      'valid_acc@1', 'valid_acc@5', 'valid_iou'])
 
-    def _init_distributed(self) -> Tuple[int, int]:
-        """Initialize the process pool if distributed is available."""
-        if distributed.is_available():
+    def _init_distributed(self) -> Tuple[int, int, bool, bool]:
+        if distributed.is_available() and self.local_rank != -1:
             if cuda.is_available():
                 distributed.init_process_group(backend='nccl', init_method='env://')
             else:
@@ -105,8 +98,15 @@ class Evaluation(object):
         else:
             rank = 0
             world_size = 1
+        return rank, world_size, rank == 0, world_size > 0
 
-        return rank, world_size
+    def _init_logging(self):
+        """Get a logger that outputs to console and file. Only log messages if on the main process."""
+        logger = logging.getLogger()
+        if not self.main_proc:
+            logger.handlers = []
+
+        return logger
 
     def _init_device(self) -> Any:
         """Set the device according to CPU vs. single process CUDA vs. distributed CUDA."""
@@ -133,6 +133,7 @@ class Evaluation(object):
         if distributed.is_available() and self.local_rank != -1:
             if cuda.is_available():
                 if self.world_size > 1:
+                    model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
                     model = nn.parallel.DistributedDataParallel(model, device_ids=[self.rank], output_device=self.rank)
                 else:
                     model = nn.parallel.DistributedDataParallel(model)
@@ -214,8 +215,7 @@ class Evaluation(object):
     def evaluate_split(self, split: str) -> 'Evaluation':
         """Get top1 and top2 results for a split and store in DataFrame."""
         assert split in ['train', 'dev', 'valid'], f'Unknown split: {split}.'
-        if self.rank == 0:
-            logging.info(f'Starting {split} evaluation...')
+        self._log(f'Starting {split} evaluation...')
         if split == 'train':
             dataset = self.data_bunch.train_set
             loader = self.data_bunch.train_loader
@@ -243,7 +243,7 @@ class Evaluation(object):
         else:
             self._calculate_vae_results(dataset, loader, options, results, split)
 
-        if self.rank == 0:
+        if self.main_proc:
             results = hp.read_smth_results(self.run_dir / f'results_{split}_{self.rank}.tar')
             for rank in range(1, self.world_size):
                 results = results.combine_first(hp.read_smth_results(self.run_dir / f'results_{split}_{rank}.tar'))
@@ -262,7 +262,9 @@ class Evaluation(object):
         with th.no_grad():
             dataset.evaluating = True
             softmax = nn.Softmax(dim=-1)
-            total = len(dataset) // options.batch_size + int(len(dataset) % options.batch_size > 0)
+
+            batch_size = options.batch_size * self.world_size
+            total = len(dataset) // batch_size + int(len(dataset) % batch_size > 0)
 
             ids, targets, preds, conf1s, top1s, conf2s, top2s, embeds = [], [], [], [], [], [], [], []
             for i, (video_data, video_labels, videos, labels) in enumerate(loader):
@@ -285,8 +287,8 @@ class Evaluation(object):
                 top2s.append(top2)
                 embeds.append(embed)
 
-                if self.rank == 0 and self.verbose:
-                    logging.info(f'[Batch: {i + 1}/{total}]')
+                if self.verbose:
+                    self._log(f'[Batch: {i + 1}/{total}]')
 
         preds = th.cat(tuple(preds), dim=0).cpu().numpy()
         conf1s = th.cat(tuple(conf1s), dim=0).cpu().numpy()
@@ -319,7 +321,9 @@ class Evaluation(object):
         with th.no_grad():
             dataset.evaluating = True
             softmax = nn.Softmax(dim=-1)
-            total = len(dataset) // options.batch_size + int(len(dataset) % options.batch_size > 0)
+
+            batch_size = options.batch_size * self.world_size
+            total = len(dataset) // batch_size + int(len(dataset) % batch_size > 0)
 
             ids, targets, preds, conf1s, top1s, conf2s, top2s, embeds = [], [], [], [], [], [], [], []
             for i, (video_data, video_labels, videos, labels) in enumerate(loader):
@@ -342,8 +346,8 @@ class Evaluation(object):
                 top2s.append(top2)
                 embeds.append(embed)
 
-                if self.rank == 0 and self.verbose:
-                    logging.info(f'[Batch: {i + 1}/{total}]')
+                if self.verbose:
+                    self._log(f'[Batch: {i + 1}/{total}]')
 
         preds = th.cat(tuple(preds), dim=0).cpu().numpy()
         conf1s = th.cat(tuple(conf1s), dim=0).cpu().numpy()
@@ -374,7 +378,9 @@ class Evaluation(object):
 
         with th.no_grad():
             dataset.evaluating = True
-            total = len(dataset) // options.batch_size + int(len(dataset) % options.batch_size > 0)
+
+            batch_size = options.batch_size * self.world_size
+            total = len(dataset) // batch_size + int(len(dataset) % batch_size > 0)
 
             ids, targets, preds, conf1s, top1s, conf2s, top2s, latents = [], [], [], [], [], [], [], []
             for i, (video_data, video_labels, videos, labels) in enumerate(loader):
@@ -385,15 +391,13 @@ class Evaluation(object):
                 ids.extend([video.meta.id for video in videos])
                 targets.extend([label.data for label in labels])
 
-                _recon, _pred, _latent, _mean, _log_var, _vote = self.model(x, True, ct.VAE_NUM_SAMPLES)
+                _recon, _pred, _latent, _mean, _var, _vote = self.model(x, True, ct.VAE_NUM_SAMPLES)
 
                 bs, ns, nc = _pred.shape
 
                 conf1, top1 = _vote.max(dim=-1)
-                conf1 = conf1 / ct.VAE_NUM_SAMPLES
 
                 conf2, top2 = _vote.topk(2, dim=-1)
-                conf2 = conf2 / ct.VAE_NUM_SAMPLES
 
                 preds.append(_vote)
                 conf1s.append(conf1)
@@ -401,11 +405,11 @@ class Evaluation(object):
                 conf2s.append(conf2)
                 top2s.append(top2)
 
-                _latent = _latent.mean(dim=1).view(bs, self.run_opts.model_opts.latent_size)
+                _latent = _latent.mean(dim=1).reshape(bs, -1)
                 latents.append(_latent)
 
-                if self.rank == 0 and self.verbose:
-                    logging.info(f'[Batch: {i + 1}/{total}]')
+                if self.verbose:
+                    self._log(f'[Batch: {i + 1}/{total}]')
 
         preds = th.cat(tuple(preds), dim=0).cpu().numpy()
         conf1s = th.cat(tuple(conf1s), dim=0).cpu().numpy()
@@ -438,9 +442,25 @@ class Evaluation(object):
         if distributed.is_available():
             distributed.barrier()
 
-        for key, value in evaluator.state.metrics.items():
-            if 'acc' in key or 'iou' in key:
-                self.metrics[f'{split}_{key}'].append(value)
+        self._aggregate_metrics(evaluator, split)
+
+    def _aggregate_metrics(self, _engine: engine.Engine, split: str) -> None:
+        """Gather evaluation metrics. Performs a reduction step if in distributed setting."""
+        assert split in ['train', 'dev', 'valid'], f'Unknown split: {split}.'
+        if self.distributed:
+            names = []
+            values = []
+
+            for key, value in _engine.state.metrics.items():
+                names.append(f'{split}_{key}')
+                values.append(value)
+            values = th.tensor(values, requires_grad=False, device=self.device)
+            distributed.all_reduce(values)
+            values /= self.world_size
+            self.metrics.update(zip(names, values.detach().cpu().numpy()))
+        else:
+            for key, value in _engine.state.metrics.items():
+                self.metrics[f'{split}_{key}'] = value
 
     def _stratified_sample_latents(self, ids: List[int], targets: List[int], latents: List[th.Tensor]) -> Tuple[
         np.ndarray, np.ndarray]:
@@ -470,25 +490,29 @@ class Evaluation(object):
             if distributed.is_available():
                 distributed.barrier()
 
-            self.metrics.update(source=[self.name])
-            row = pd.DataFrame(data=self.metrics).set_index('source')
-            if self.name in self.results.index:
-                self.results.update(row)
-            else:
-                self.results = self.results.append(row, ignore_index=False, verify_integrity=True, sort=True)
-            self.results.to_json((ct.SMTH_RUN_DIR / self.cut / 'results.json').as_posix(), orient='index')
+            if self.main_proc:
+                self.metrics.update(source=[self.name])
+                row = pd.DataFrame(data=self.metrics).set_index('source')
+                if self.name in self.results.index:
+                    self.results.update(row)
+                else:
+                    self.results = self.results.append(row, ignore_index=False, verify_integrity=True, sort=True)
+                self.results.to_json((ct.SMTH_RUN_DIR / self.cut / 'results.json').as_posix(), orient='index')
 
-            if self.rank == 0:
-                logging.info('Evaluation Completed. Sending notification.')
+                self._log('Evaluation Completed. Sending notification.')
                 hp.notify('good', self.run_opts.name, f"""Finished evaluation job.""")
-                logging.info('Done.')
+                self._log('Done.')
         except Exception:
-            fields = [
-                {
-                    'title': 'Error',
-                    'value': traceback.format_exc(),
-                    'short': False
-                }
-            ]
-            hp.notify('bad', self.run_opts.name, f"""Error occurred during evaluation.""", fields)
-            raise
+            if self.main_proc:
+                fields = [
+                    {
+                        'title': 'Error',
+                        'value': traceback.format_exc(),
+                        'short': False
+                    }
+                ]
+                hp.notify('bad', self.run_opts.name, f"""Error occurred during evaluation.""", fields)
+                raise
+
+    def _log(self, msg: str):
+        self.logger.info(msg)

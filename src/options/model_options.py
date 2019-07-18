@@ -1,11 +1,10 @@
-from typing import Any, Callable, Dict, Optional, Tuple, Union
-
 import dataclasses as dc
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import options.pipe_options as pio
 
 __all__ = [
-    'TrainerOptions', 'EvaluatorOptions', 'LRCNOptions',
+    'TrainerOptions', 'EvaluatorOptions',
     'OptimizerOptions', 'AdamOptimizerOptions',
     'RunOptions'
 ]
@@ -31,26 +30,6 @@ class CriterionOptions:
 
 
 @dc.dataclass
-class VAECriterionOptions(CriterionOptions):
-    mse_factor: float
-    ce_factor: float
-    kld_factor: float
-
-
-@dc.dataclass
-class AECriterionOptions(CriterionOptions):
-    mse_factor: float
-    ce_factor: float
-
-
-@dc.dataclass
-class LRCNOptions:
-    num_classes: int
-    freeze_features: bool
-    freeze_fusion: bool
-
-
-@dc.dataclass
 class Unit3DOptions:
     in_channels: int
     out_channels: int
@@ -63,21 +42,6 @@ class Unit3DOptions:
 
 
 @dc.dataclass
-class VAEI3DOptions:
-    latent_size: int
-    dropout_prob: float
-    num_classes: int
-    vote_type: str
-
-
-@dc.dataclass
-class AEI3DOptions:
-    embed_size: int
-    dropout_prob: float
-    num_classes: int
-
-
-@dc.dataclass
 class I3DOptions:
     num_classes: int
     dropout_prob: float = 0.0
@@ -85,18 +49,45 @@ class I3DOptions:
 
 
 @dc.dataclass
-class TADNOptions:
+class AEI3DOptions:
+    embed_planes: int
+    dropout_prob: float
     num_classes: int
-    time_steps: int
-    growth_rate: int
-    drop_rate: float
+
+
+@dc.dataclass
+class VAEI3DOptions:
+    latent_planes: int
+    dropout_prob: float
+    num_classes: int
+    vote_type: str
 
 
 @dc.dataclass
 class TARNOptions:
-    num_classes: int
     time_steps: int
     drop_rate: float
+    num_classes: int
+    encoder_planes: Tuple[int, ...]
+
+
+@dc.dataclass
+class AETARNOptions:
+    time_steps: int
+    drop_rate: float
+    num_classes: int
+    encoder_planes: Tuple[int, ...]
+    decoder_planes: Tuple[int, ...]
+
+
+@dc.dataclass
+class VAETARNOptions:
+    time_steps: int
+    drop_rate: float
+    num_classes: int
+    vote_type: str
+    encoder_planes: Tuple[int, ...]
+    decoder_planes: Tuple[int, ...]
 
 
 @dc.dataclass
@@ -104,8 +95,8 @@ class TrainerOptions:
     epochs: int
     optimizer: Any
     criterion: Any
-    optimizer_opts: Optional[OptimizerOptions] = OptimizerOptions()
-    criterion_opts: Optional[CriterionOptions] = CriterionOptions()
+    optimizer_opts: Optional[OptimizerOptions] = None
+    criterion_opts: CriterionOptions = CriterionOptions()
     metrics: Optional[Dict[str, Any]] = None
 
 
@@ -113,7 +104,7 @@ class TrainerOptions:
 class EvaluatorOptions:
     metrics: Dict[str, Any]
     criterion: Optional[Callable] = None
-    criterion_opts: Optional[CriterionOptions] = CriterionOptions()
+    criterion_opts: CriterionOptions = CriterionOptions()
 
 
 @dc.dataclass
@@ -121,10 +112,11 @@ class RunOptions:
     name: str
     mode: str
     resume: bool
+    debug: bool
     log_interval: int
     patience: int
     model: Any
-    model_opts: Union[LRCNOptions, I3DOptions, TADNOptions, TARNOptions, AEI3DOptions, VAEI3DOptions]
+    model_opts: Union[I3DOptions, TARNOptions, AEI3DOptions, AETARNOptions, VAEI3DOptions, VAETARNOptions]
     data_bunch: Any
     db_opts: pio.DataBunchOptions
     train_ds_opts: pio.DataSetOptions

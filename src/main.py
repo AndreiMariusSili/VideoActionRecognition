@@ -30,7 +30,8 @@ def parse_options(opts: str) -> Dict[str, Any]:
 
 def main(args):
     """Parse arguments and start jobs."""
-    env.logging.info('Running main script.')
+    if args.local_rank in [-1, 0]:
+        env.logging.info('Running main script.')
     job, opts = args.job, parse_options(args.opts)
     opts['resume'] = args.resume
     opts['local_rank'] = args.local_rank

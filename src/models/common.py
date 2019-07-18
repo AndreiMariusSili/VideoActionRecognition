@@ -141,48 +141,35 @@ class Upsample(nn.Module):
 
 
 class Flatten(nn.Module):
-    num_channels: int
-
-    def __init__(self, num_channels: int):
+    def __init__(self):
         super(Flatten, self).__init__()
-
-        self.num_channels = num_channels
 
     def forward(self, _in: th.Tensor):
         bs = _in.shape[0]
-        return _in.view((bs, self.num_channels))
+        return _in.reshape((bs, -1))
 
 
 class Unflatten(nn.Module):
-    num_channels: int
+    shape: Tuple[int, ...]
 
-    def __init__(self, num_channels: int):
+    def __init__(self):
         super(Unflatten, self).__init__()
 
-        self.num_channels = num_channels
+    def forward(self, _in: th.Tensor, num_samples: int, shape: Tuple[int, ...]) -> th.Tensor:
+        bs = _in.shape[0]
 
-    def forward(self, _in: th.Tensor) -> th.Tensor:
-        if len(_in.shape) == 3:
-            bs, num_samples, latent_size = _in.shape
-        elif len(_in.shape) == 2:
-            bs, latent_size = _in.shape
-            num_samples = 1
-        else:
-            raise ValueError(f'Wrong input dimensions: {_in.shape}')
-
-        return _in.view((bs * num_samples, self.num_channels, 1, 1, 1))
+        return _in.reshape((bs, max(1, num_samples), *shape))
 
 
 class ReparameterizedSample(nn.Module):
-    latent_size: int
-
-    def __init__(self, latent_size: int):
+    def __init__(self):
         super(ReparameterizedSample, self).__init__()
 
-        self.latent_size = latent_size
+        self.flatten = Flatten()
+        self.unflatten = Unflatten()
 
-    def forward(self, mean: th.Tensor, log_var: th.Tensor, num_samples: int) -> th.Tensor:
-        std = log_var.mul(0.5).exp()
+    def forward(self, mean: th.Tensor, var: th.Tensor, num_samples: int) -> th.Tensor:
+        std = th.sqrt(var)
         dist = distributions.normal.Normal(mean, std)
         z = dist.rsample([num_samples])
 

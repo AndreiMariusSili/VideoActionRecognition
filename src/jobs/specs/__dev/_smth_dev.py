@@ -10,6 +10,8 @@ __all__ = [
     'valid_ds_opts', 'valid_dl_opts'
 ]
 
+# TODO: CHANGE.
+
 ########################################################################################################################
 # DATA BUNCH OPTIONS
 ########################################################################################################################
@@ -23,8 +25,8 @@ db_opts = pipe_options.DataBunchOptions(
 train_do = pipe_options.DataOptions(
     meta_path=ct.SMTH_META_TRAIN,
     cut=1.0,
-    setting='train',
-    keep=0.25
+    setting='eval',
+    keep=0.008
 )
 train_so = pipe_options.SamplingOptions(
     num_segments=4,
@@ -35,7 +37,7 @@ train_ds_opts = pipe_options.DataSetOptions(
     so=train_so
 )
 train_dl_opts = pipe_options.DataLoaderOptions(
-    batch_size=256,
+    batch_size=32,
     shuffle=True,
     num_workers=os.cpu_count(),
     pin_memory=True,
@@ -45,10 +47,10 @@ train_dl_opts = pipe_options.DataLoaderOptions(
 # DEV DATA
 ########################################################################################################################
 dev_do = pipe_options.DataOptions(
-    meta_path=ct.SMTH_META_DEV,
+    meta_path=ct.SMTH_META_TRAIN,
     cut=1.0,
-    setting='valid',
-    keep=0.25
+    setting='eval',
+    keep=0.008
 )
 dev_so = pipe_options.SamplingOptions(
     num_segments=4,
@@ -59,7 +61,7 @@ dev_ds_opts = pipe_options.DataSetOptions(
     so=dev_so
 )
 dev_dl_opts = pipe_options.DataLoaderOptions(
-    batch_size=256,
+    batch_size=32,
     shuffle=False,
     num_workers=os.cpu_count(),
     pin_memory=True,
@@ -69,10 +71,10 @@ dev_dl_opts = pipe_options.DataLoaderOptions(
 # VALID DATA
 ########################################################################################################################
 valid_do = pipe_options.DataOptions(
-    meta_path=ct.SMTH_META_VALID,
+    meta_path=ct.SMTH_META_TRAIN,
     cut=1.0,
-    setting='valid',
-    keep=0.25
+    setting='eval',
+    keep=0.008
 )
 valid_so = pipe_options.SamplingOptions(
     num_segments=4,
@@ -83,7 +85,7 @@ valid_ds_opts = pipe_options.DataSetOptions(
     so=valid_so
 )
 valid_dl_opts = pipe_options.DataLoaderOptions(
-    batch_size=256,
+    batch_size=32,
     shuffle=False,
     num_workers=os.cpu_count(),
     pin_memory=True,

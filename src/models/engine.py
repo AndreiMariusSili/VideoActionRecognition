@@ -64,51 +64,6 @@ def create_cls_evaluator(model, metrics=None, device=None, non_blocking=True):
     return _engine
 
 
-def create_vae_trainer(model, optimizer, loss_fn: mc.VAECriterion, metrics=None, device=None,
-                       non_blocking=True) -> ie.Engine:
-    if device:
-        model.to(device)
-
-    def _update(_engine, batch):
-        model.train()
-        optimizer.zero_grad()
-        x, y = _prepare_batch(batch, device=device, non_blocking=non_blocking)
-        _recon, _pred, _latent, _mean, _log_var, _ = model(x, inference=False, num_samples=1)
-        bs, ns, nc = _pred.shape
-        mse, ce, kld = loss_fn(_recon, _pred.view(bs * ns, nc), x, y, _mean, _log_var)
-        (mse + ce + kld).backward()
-        optimizer.step()
-        return _recon.detach(), _pred.detach(), _latent.detach(), _mean.detach(), _log_var.detach(), \
-               x.detach(), y.detach(), \
-               mse.item(), ce.item(), kld.item()
-
-    _engine = ie.Engine(_update)
-    if metrics is not None:
-        for name, metric in metrics.items():
-            metric.attach(_engine, name)
-
-    return _engine
-
-
-def create_vae_evaluator(model, metrics=None, device=None, non_blocking=True) -> ie.Engine:
-    if device:
-        model.to(device)
-
-    def _inference(_engine, batch):
-        model.eval()
-        with th.no_grad():
-            x, y = _prepare_batch(batch, device=device, non_blocking=non_blocking)
-            _recon, _pred, _latent, _mean, _log_var, _vote = model(x, inference=True, num_samples=ct.VAE_NUM_SAMPLES)
-            return _recon, _pred, _latent, _mean, _log_var, x, y, _vote
-
-    _engine = ie.Engine(_inference)
-    if metrics is not None:
-        for name, metric in metrics.items():
-            metric.attach(_engine, name)
-
-    return _engine
-
-
 def create_ae_trainer(model, optimizer, loss_fn: mc.AECriterion, metrics: Dict[str, Any] = None,
                       device=None, non_blocking=True) -> ie.Engine:
     if device:
@@ -121,10 +76,11 @@ def create_ae_trainer(model, optimizer, loss_fn: mc.AECriterion, metrics: Dict[s
 
         _pred, _embed, _recon = model(x, inference=False)
 
-        mse, ce = loss_fn(_recon, _pred, x, y)
-        (mse + ce).backward()
+        ce, mse = loss_fn(_recon, _pred, x, y)
+        (ce + mse).backward()
         optimizer.step()
-        return _recon.detach(), _pred.detach(), _embed.detach(), x.detach(), y.detach(), mse.item(), ce.item()
+
+        return _recon.detach(), _pred.detach(), _embed.detach(), x.detach(), y.detach(), ce.item(), mse.item()
 
     _engine = ie.Engine(_update)
     if metrics is not None:
@@ -144,6 +100,54 @@ def create_ae_evaluator(model, metrics=None, device=None, non_blocking=True) -> 
             x, y = _prepare_batch(batch, device=device, non_blocking=non_blocking)
             _pred, _embed, _recon = model(x, inference=True)
             return _recon, _pred, _embed, x, y
+
+    _engine = ie.Engine(_inference)
+    if metrics is not None:
+        for name, metric in metrics.items():
+            metric.attach(_engine, name)
+
+    return _engine
+
+
+def create_vae_trainer(model, optimizer, loss_fn: mc.VAECriterion, metrics=None, device=None,
+                       non_blocking=True) -> ie.Engine:
+    if device:
+        model.to(device)
+
+    def _update(_engine, batch):
+        model.train()
+        optimizer.zero_grad()
+        x, y = _prepare_batch(batch, device=device, non_blocking=non_blocking)
+        _recon, _pred, _latent, _mean, _var, _ = model(x, inference=False, num_samples=1)
+        bs, ns, nc = _pred.shape
+        ce, mse, kld = loss_fn(_recon, _pred.reshape(bs * ns, nc), x, y, _mean, _var)
+
+        (ce + mse + loss_fn.kld_factor * kld).backward()
+        optimizer.step()
+
+        return _recon.detach(), _pred.detach(), _latent.detach(), _mean.detach(), _var.detach(), \
+               x.detach(), y.detach(), \
+               ce.item(), mse.item(), kld.item(), \
+               loss_fn.kld_factor
+
+    _engine = ie.Engine(_update)
+    if metrics is not None:
+        for name, metric in metrics.items():
+            metric.attach(_engine, name)
+
+    return _engine
+
+
+def create_vae_evaluator(model, metrics=None, device=None, non_blocking=True) -> ie.Engine:
+    if device:
+        model.to(device)
+
+    def _inference(_engine, batch):
+        model.eval()
+        with th.no_grad():
+            x, y = _prepare_batch(batch, device=device, non_blocking=non_blocking)
+            _recon, _pred, _latent, _mean, _log_var, _vote = model(x, inference=True, num_samples=ct.VAE_NUM_SAMPLES)
+            return _recon, _pred, _latent, _mean, _log_var, x, y, _vote
 
     _engine = ie.Engine(_inference)
     if metrics is not None:

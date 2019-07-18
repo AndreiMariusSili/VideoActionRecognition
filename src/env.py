@@ -4,9 +4,11 @@ import ignite
 import numpy as np
 import torch as th
 
+import constants as ct
+
 logging.basicConfig(level='INFO', format='[%(asctime)-s][%(process)d][%(levelname)s]\t%(message)s')
-th.manual_seed(0)
-np.random.seed(0)
+th.manual_seed(ct.RANDOM_STATE)
+np.random.seed(ct.RANDOM_STATE)
 
 
 #   Monkey patch the ignite framework to allow dataclass serialisation.

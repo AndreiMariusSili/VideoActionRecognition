@@ -24,7 +24,7 @@ class Video(object):
                  num_segments: Optional[int], segment_sample_size: Optional[int]):
         """Initialize a Video object from a row in the meta DataFrame."""
         assert 0.0 <= cut <= 1.0, f'Cut should be a value between 0.0 and 1.0. Received: {cut}.'
-        assert setting in ['train', 'valid'], f'setting should be either "train" or "valid".'
+        assert setting in ['train', 'eval'], f'Unknown setting: {setting}.'
         assert bool(num_segments) == bool(segment_sample_size), 'Specify both number of segments and segment size.'
 
         self.meta = meta

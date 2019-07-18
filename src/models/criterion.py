@@ -11,45 +11,39 @@ class KLDivergence(nn.Module):
     def __init__(self):
         super(KLDivergence, self).__init__()
 
-    def forward(self, mean: th.Tensor, log_var: th.Tensor) -> th.Tensor:
+    def forward(self, mean: th.Tensor, var: th.Tensor) -> th.Tensor:
         device = mean.device
-        bs, ls = mean.shape
-        kld = th.tensor(-0.5).to(device) * (th.tensor(1.0).to(device) + log_var - mean.pow(2) - log_var.exp()).sum()
+        numel = mean.numel()
 
-        return kld / (bs * ls)
+        kld = th.tensor(-0.5).to(device) * (1 + var.log() - mean.pow(2) - var).sum()
+
+        return kld / numel
 
 
 class AECriterion(nn.Module):
     mse_factor: float
     ce_factor: float
 
-    def __init__(self, mse_factor: float, ce_factor: float):
+    def __init__(self):
         super(AECriterion, self).__init__()
 
-        self.mse_factor = mse_factor
-        self.ce_factor = ce_factor
-
-        self.mse = nn.MSELoss(reduction='mean')
         self.ce = nn.CrossEntropyLoss(reduction='mean')
+        self.mse = nn.MSELoss(reduction='mean')
 
     def forward(self, _recon: th.Tensor, _pred: th.Tensor, _in: th.Tensor, _class: th.Tensor) -> AE_CRITERION_FORWARD:
-        mse = self.mse_factor * self.mse(_recon, _in)
-        ce = self.ce_factor * self.ce(_pred, _class)
+        ce = self.ce(_pred, _class)
+        mse = self.mse(_recon, _in)
 
-        return mse, ce
+        return ce, mse
 
 
 class VAECriterion(nn.Module):
-    mse_factor: float
-    ce_factor: float
     kld_factor: float
 
-    def __init__(self, mse_factor: float, ce_factor: float, kld_factor: float):
+    def __init__(self):
         super(VAECriterion, self).__init__()
 
-        self.kld_factor = kld_factor
-        self.mse_factor = mse_factor
-        self.ce_factor = ce_factor
+        self.kld_factor = 0.0
 
         self.mse = nn.MSELoss(reduction='mean')
         self.ce = nn.CrossEntropyLoss(reduction='mean')
@@ -57,8 +51,8 @@ class VAECriterion(nn.Module):
 
     def forward(self, _recon: th.Tensor, _pred: th.Tensor, _in: th.Tensor, _class: th.Tensor,
                 _mean: th.Tensor, _log_var: th.Tensor) -> VAE_CRITERION_FORWARD:
-        mse = self.mse_factor * self.mse(_recon, _in)
-        ce = self.ce_factor * self.ce(_pred, _class)
-        kld = self.kld_factor * self.kld(_mean, _log_var)
+        ce = self.ce(_pred, _class)
+        mse = self.mse(_recon, _in)
+        kld = self.kld(_mean, _log_var)
 
-        return mse, ce, kld
+        return ce, mse, kld

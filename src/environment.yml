@@ -4,11 +4,9 @@ channels:
   - conda-forge
   - pytorch
 dependencies:
-  - python=3.6
-  - tensorflow
-  - tensorflow-probability
-  - tensorflow-probability-gpu
-  - pytorch
+  - python=3.7
+  - pip
+  - pytorch=1.1.0
   - torchvision
   - ignite
   - pandas
@@ -22,8 +20,8 @@ dependencies:
   - jupyter
   - requests
   - seaborn
+  - tensorboardx
   - pip:
-      - dataclasses
-      - memory-profiler
-      - dm-sonnet
       - autopep8
+      - tensorboard
+      - git+https://github.com/pytorch/ignite.git

@@ -37,12 +37,12 @@ class LRCN(nn.Module):
         """Forward pass for the whole LRCN network."""
         bs, sl, c, h, w = _in.shape
 
-        features = self.features(_in.view((bs * sl, c, h, w)))
-        fusion = self.fusion(features.view(bs * sl, FUSION_IN))
+        features = self.features(_in.reshape((bs * sl, c, h, w)))
+        fusion = self.fusion(features.reshape(bs * sl, FUSION_IN))
 
         self.lstm.flatten_parameters()
 
-        lstm_out, _ = self.lstm(fusion.view(bs, sl, LSTM_IN))
+        lstm_out, _ = self.lstm(fusion.reshape(bs, sl, LSTM_IN))
         _out = self.classifier(lstm_out)
 
         return _out.mean(dim=1), lstm_out.mean(dim=1)

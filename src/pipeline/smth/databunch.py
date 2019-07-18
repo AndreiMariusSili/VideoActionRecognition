@@ -1,8 +1,8 @@
 import os
+from dataclasses import asdict
 from typing import List, Optional, Tuple
 
 import pandas as pd
-from dataclasses import asdict
 from torch.utils import data as thd
 from tqdm import tqdm
 
@@ -48,30 +48,18 @@ class SmthDataBunch(object):
         min_height = self.stats['min_height'].item()
         min_width = self.stats['min_width'].item()
         tfms = []
-        if db_opts.frame_size > min_height or db_opts.frame_size > min_width:
+        if self.db_opts.frame_size > min_height or self.db_opts.frame_size > min_width:
             tfms.append(pit.Pad(self.db_opts.frame_size, self.db_opts.frame_size))
 
         train_tfms = tfms.copy()
-        train_tfms.extend([
-            pit.RandomCrop(db_opts.frame_size),
-            pit.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-            pit.ToVolumeArray(3, True) if self.db_opts.shape == 'volume' else pit.ClipToStackedArray(3),
-        ])
-        train_ds_opts.do.transform = pit.VideoCompose(train_tfms)
-
+        self._compose_transforms(train_tfms, self.train_ds_opts.do.setting)
+        self.train_ds_opts.do.transform = pit.VideoCompose(train_tfms)
         dev_tfms = tfms.copy()
-        dev_tfms.extend([
-            pit.CenterCrop(db_opts.frame_size),
-            pit.ToVolumeArray(3, True) if self.db_opts.shape == 'volume' else pit.ClipToStackedArray(3),
-        ])
-        dev_ds_opts.do.transform = pit.VideoCompose(dev_tfms)
-
+        self._compose_transforms(dev_tfms, self.dev_ds_opts.do.setting)
+        self.dev_ds_opts.do.transform = pit.VideoCompose(dev_tfms)
         valid_tfms = tfms.copy()
-        valid_tfms.extend([
-            pit.CenterCrop(db_opts.frame_size),
-            pit.ToVolumeArray() if self.db_opts.shape == 'volume' else pit.ClipToStackedArray(3),
-        ])
-        valid_ds_opts.do.transform = pit.VideoCompose(valid_tfms)
+        self._compose_transforms(valid_tfms, self.valid_ds_opts.do.setting)
+        self.valid_ds_opts.do.transform = pit.VideoCompose(valid_tfms)
 
         self.train_set = dataset.SmthDataset(self.train_ds_opts.do, self.train_ds_opts.so)
         self.dev_set = dataset.SmthDataset(self.dev_ds_opts.do, self.dev_ds_opts.so)
@@ -101,9 +89,26 @@ class SmthDataBunch(object):
                                            sampler=self.valid_sampler,
                                            **asdict(self.valid_dl_opts))
 
+    def _compose_transforms(self, tfms: List[pit.VideoTransform], setting: str) -> None:
+        """Create transformation pipeline depending on setting."""
+        assert setting in ['train', 'eval'], f'Unknown setting: {setting}.'
+        if setting == 'train':
+            tfms.extend([
+                pit.RandomCrop(self.db_opts.frame_size),
+                pit.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
+                pit.ToVolumeArray(3, True) if self.db_opts.shape == 'volume' else pit.ClipToStackedArray(3),
+            ])
+        else:
+            tfms.extend([
+                pit.CenterCrop(self.db_opts.frame_size),
+                pit.ToVolumeArray(3, True) if self.db_opts.shape == 'volume' else pit.ClipToStackedArray(3),
+            ])
+
+        return
+
     def get_batch(self, n: int, spl: str) -> Tuple[List[piv.Video], List[pil.Label]]:
         """Retrieve a random batch from one of the datasets."""
-        assert spl in ['train', 'valid'], f'Unknown split: {spl}.'
+        assert spl in ['train', 'dev', 'valid'], f'Unknown split: {spl}.'
 
         if spl == 'train':
             batch = self.train_set.get_batch(n)

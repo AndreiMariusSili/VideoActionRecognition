@@ -56,19 +56,8 @@ class Visualisation(object):
         """Init a visualizer with a run model. They need to match."""
         self.page = page
         self.mode = spec.mode
-        if self.mode == 'class':
-            self.name = spec.name
-        elif self.mode == 'ae':
-            self.name = f'{spec.name}@' \
-                f'{spec.trainer_opts.criterion_opts.mse_factor}_' \
-                f'{spec.trainer_opts.criterion_opts.ce_factor}'
-        else:
-            self.name = f'{spec.name}@' \
-                f'{spec.trainer_opts.criterion_opts.mse_factor}_' \
-                f'{spec.trainer_opts.criterion_opts.ce_factor}_' \
-                f'{spec.trainer_opts.criterion_opts.kld_factor}'
-
-        self.cut = f'__{self.name.split("@").pop(0).split("_").pop()}'
+        self.name = spec.name
+        self.cut = f'__{self.name.split("_").pop()}'
         self.run_dir = ct.SMTH_RUN_DIR / self.cut / self.name
 
         self.run_opts = spec
@@ -166,7 +155,6 @@ class Visualisation(object):
             self.__create_table_source(details['valid_dl_opts'], 'Valid DataLoader'),
             self.__create_table_source(details['trainer_opts'], 'Trainer'),
             self.__create_table_source(details['evaluator_opts'], 'Evaluator'),
-
         ]
         for i, (source, columns) in enumerate(tables):
             table = bom.DataTable(source=source, columns=columns, header_row=True, fit_columns=False,
@@ -195,13 +183,13 @@ class Visualisation(object):
             'line_width': 3
         }
         if self.run_opts.mode == 'class':
-            ys = list(zip(['train_loss', 'dev_loss'], ['Train Loss', 'Dev Loss']))
-            loss_plot = self.__create_line_plot('Loss Over Epochs', 'Loss', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_ce_loss', 'dev_ce_loss'], ['Train CE Loss', 'Dev CE Loss']))
+            loss_plot = self.__create_line_plot('CE Loss Over Epochs', 'Loss', 'epoch', ys, fkwargs, lkwargs)
             fkwargs['y_range'] = (0, 1)
             ys = list(zip(['train_acc@1', 'dev_acc@1'], ['Train Acc@1', 'Dev Acc@1']))
             top1_plot = self.__create_line_plot('Accuracy@1 Over Epochs', 'Acc@1', 'epoch', ys, fkwargs, lkwargs)
             ys = list(zip(['train_acc@5', 'dev_acc@5'], ['Train Acc@5', 'Dev Acc@5']))
-            top2_plot = self.__create_line_plot('Accuracy@2 Over Epochs', 'Acc@5', 'epoch', ys, fkwargs, lkwargs)
+            top2_plot = self.__create_line_plot('Accuracy@5 Over Epochs', 'Acc@5', 'epoch', ys, fkwargs, lkwargs)
             ys = list(zip(['train_iou', 'dev_iou'], ['Train IoU', 'Dev IoU']))
             iou_plot = self.__create_line_plot('IoU Over Epochs', 'Acc Diff', 'epoch', ys, fkwargs, lkwargs)
             grid = bol.gridplot([
@@ -209,15 +197,15 @@ class Visualisation(object):
                 [loss_plot, bom.Spacer(), bom.Spacer()]
             ], sizing_mode='scale_width')
         elif self.run_opts.mode == 'ae':
-            ys = list(zip(['train_mse_loss', 'dev_mse_loss'], ['Train MSE Loss', 'Dev MSE Loss']))
-            mse_loss_plot = self.__create_line_plot('MSE Loss Over Epochs', 'MSE Loss', 'epoch', ys, fkwargs, lkwargs)
             ys = list(zip(['train_ce_loss', 'dev_ce_loss'], ['Train CE Loss', 'Dev CE Loss']))
             ce_loss_plot = self.__create_line_plot('CE Loss Over Epochs', 'CE Loss', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_mse_loss', 'dev_mse_loss'], ['Train MSE Loss', 'Dev MSE Loss']))
+            mse_loss_plot = self.__create_line_plot('MSE Loss Over Epochs', 'MSE Loss', 'epoch', ys, fkwargs, lkwargs)
             fkwargs['y_range'] = (0, 1)
             ys = list(zip(['train_acc@1', 'dev_acc@1'], ['Train Acc@1', 'Dev Acc@1']))
             top1_plot = self.__create_line_plot('Accuracy@1 Over Epochs', 'Acc@1', 'epoch', ys, fkwargs, lkwargs)
             ys = list(zip(['train_acc@5', 'dev_acc@5'], ['Train Acc@5', 'Dev Acc@5']))
-            top2_plot = self.__create_line_plot('Accuracy@2 Over Epochs', 'Acc@5', 'epoch', ys, fkwargs, lkwargs)
+            top2_plot = self.__create_line_plot('Accuracy@5 Over Epochs', 'Acc@5', 'epoch', ys, fkwargs, lkwargs)
             ys = list(zip(['train_iou', 'dev_iou'], ['Train IoU', 'Dev IoU']))
             iou_plot = self.__create_line_plot('IoU Over Epochs', 'Acc Diff', 'epoch', ys, fkwargs, lkwargs)
             grid = bol.gridplot([
@@ -225,17 +213,17 @@ class Visualisation(object):
                 [mse_loss_plot, ce_loss_plot, bom.Spacer()],
             ], sizing_mode='scale_width')
         else:
-            ys = list(zip(['train_mse_loss', 'dev_mse_loss'], ['Train MSE Loss', 'Dev MSE Loss']))
-            mse_loss_plot = self.__create_line_plot('MSE Loss Over Epochs', 'MSE Loss', 'epoch', ys, fkwargs, lkwargs)
             ys = list(zip(['train_ce_loss', 'dev_ce_loss'], ['Train CE Loss', 'Dev CE Loss']))
             ce_loss_plot = self.__create_line_plot('CE Loss Over Epochs', 'CE Loss', 'epoch', ys, fkwargs, lkwargs)
+            ys = list(zip(['train_mse_loss', 'dev_mse_loss'], ['Train MSE Loss', 'Dev MSE Loss']))
+            mse_loss_plot = self.__create_line_plot('MSE Loss Over Epochs', 'MSE Loss', 'epoch', ys, fkwargs, lkwargs)
             ys = list(zip(['train_kld_loss', 'dev_kld_loss'], ['Train KLD Loss', 'Dev KLD Loss']))
             kld_loss_plot = self.__create_line_plot('KLD Loss Over Epochs', 'KLD Loss', 'epoch', ys, fkwargs, lkwargs)
             fkwargs['y_range'] = (0, 1)
             ys = list(zip(['train_acc@1', 'dev_acc@1'], ['Train Acc@1', 'Dev Acc@1']))
             top1_plot = self.__create_line_plot('Accuracy@1 Over Epochs', 'Acc@1', 'epoch', ys, fkwargs, lkwargs)
             ys = list(zip(['train_acc@5', 'dev_acc@5'], ['Train Acc@5', 'Dev Acc@5']))
-            top2_plot = self.__create_line_plot('Accuracy@2 Over Epochs', 'Acc@5', 'epoch', ys, fkwargs, lkwargs)
+            top2_plot = self.__create_line_plot('Accuracy@5 Over Epochs', 'Acc@5', 'epoch', ys, fkwargs, lkwargs)
             ys = list(zip(['train_iou', 'dev_iou'], ['Train IoU', 'Dev IoU']))
             iou_plot = self.__create_line_plot('IoU Over Epochs', 'Acc Diff', 'epoch', ys, fkwargs, lkwargs)
             grid = bol.gridplot([
@@ -322,7 +310,7 @@ class Visualisation(object):
             video.show(fig, self.source)
             label.show(fig)
             pred = prediction.show(self.lid2label, ['no-margin', 'scroll'])
-            self.batch.append(bol.column([fig, pred]))
+            self.batch.append(bol.column([fig, pred], height=224, width=336))
 
         return self
 
@@ -608,6 +596,8 @@ class Visualisation(object):
                 continue
             if isinstance(val, str) and val.startswith('<class'):
                 val = val.replace("'>", "").split('.')[-1]
+            if isinstance(val, list):
+                val = ','.join(str(v) for v in val)
             source['opt'].append(opt)
             source['val'].append(val)
         if name == 'Run Options':

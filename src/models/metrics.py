@@ -49,18 +49,18 @@ class VAELoss(im.Metric):
 
     def prepare(self, output: Tuple[th.Tensor, ...]) -> Tuple[th.Tensor, ...]:
         _recon, _pred, _latent, _mean, _log_var, _in, _target, _ = output
-        _pred = _pred[:, 0, :].squeeze(dim=1)
+        _pred = _pred.mean(dim=1)
 
         return _recon, _pred, _latent, _mean, _log_var, _in, _target
 
     def update(self, output):
         _recon, _pred, _latent, _mean, _log_var, _input, _target, = self.prepare(output)
-        mse, ce, kld = self.loss_fn(_recon, _pred, _input, _target, _mean, _log_var)
+        ce, mse, kld = self.loss_fn(_recon, _pred, _input, _target, _mean, _log_var)
 
         n = _pred.shape[0]
 
-        self.mse += mse.item() * n
         self.ce += ce.item() * n
+        self.mse += mse.item() * n
         self.kld += kld.item() * n
         self.num_examples += n
 
@@ -68,7 +68,7 @@ class VAELoss(im.Metric):
         if self.num_examples == 0:
             raise ie.NotComputableError(
                 'Loss must have at least one example before it can be computed')
-        return self.mse / self.num_examples, self.ce / self.num_examples, self.kld / self.num_examples
+        return self.ce / self.num_examples, self.mse / self.num_examples, self.kld / self.num_examples
 
 
 class AELoss(im.Metric):
@@ -76,29 +76,29 @@ class AELoss(im.Metric):
     def __init__(self, loss_fn, output_transform=lambda x: x):
         super(AELoss, self).__init__(output_transform)
         self.loss_fn = loss_fn
-        self.mse = 0
         self.ce = 0
+        self.mse = 0
         self.num_examples = 0
 
     def reset(self):
-        self.mse = 0
         self.ce = 0
+        self.mse = 0
         self.num_examples = 0
 
     def update(self, output):
         _recon, _pred, _embed, _in, _target, = output
-        mse, ce = self.loss_fn(_recon, _pred, _in, _target)
+        ce, mse = self.loss_fn(_recon, _pred, _in, _target)
 
         n = _pred.shape[0]
 
-        self.mse += mse.item() * n
         self.ce += ce.item() * n
+        self.mse += mse.item() * n
         self.num_examples += n
 
     def compute(self):
         if self.num_examples == 0:
             raise ie.NotComputableError('Loss must have at least one example before it can be computed')
-        return self.mse / self.num_examples, self.ce / self.num_examples
+        return self.ce / self.num_examples, self.mse / self.num_examples
 
 
 class MultiLabelIoU(im.Metric):

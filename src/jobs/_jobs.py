@@ -59,7 +59,7 @@ def run_model(opts: job_options.ModelRunOptions):
     import models.run as mr
     spec = _get_spec(opts)
     spec.resume = opts.resume
-    mr.Run(spec).run()
+    mr.Run(spec, opts.local_rank).run()
 
 
 def evaluate_model(opts: job_options.ModelEvaluateOptions):

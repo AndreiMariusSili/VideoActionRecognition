@@ -1,9 +1,8 @@
 from typing import Tuple
 
 import torch as th
-from torch import nn
-
 from models.tadn._inception3 import InceptionBase
+from torch import nn
 
 INC_OUT_C, INC_OUT_H, INC_OUT_W = 2048, 5, 5
 
@@ -121,7 +120,7 @@ class TimeAlignedDenseNet(nn.Module):
 
     def forward(self, _in: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
         bs, t, c, h, w = _in.shape
-        _in = self.spatial(_in.view((bs * t, c, h, w))).view((bs, t, INC_OUT_C, INC_OUT_H, INC_OUT_W))
+        _in = self.spatial(_in.reshape((bs * t, c, h, w))).reshape((bs, t, INC_OUT_C, INC_OUT_H, INC_OUT_W))
 
         _in_prev = None
         _out = None
@@ -132,7 +131,7 @@ class TimeAlignedDenseNet(nn.Module):
         _embeds = self.aggregation(_out)
         _out = self.classifier(_embeds)
 
-        return _out.view(bs, self.num_classes), _embeds.view(bs, -1)
+        return _out.reshape(bs, self.num_classes), _embeds.reshape(bs, -1)
 
 
 if __name__ == "__main__":
