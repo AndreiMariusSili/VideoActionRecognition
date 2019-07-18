@@ -352,7 +352,7 @@ class Run(object):
                     'short': False
                 },
                 {
-                    'title': 'Accuracy@2 (Train / Dev)',
+                    'title': 'Accuracy@5 (Train / Dev)',
                     'value': f'{self.metrics["train_acc@5"]:.4f} / {self.metrics["dev_acc@5"]:.4f}',
                     'short': False
                 },
