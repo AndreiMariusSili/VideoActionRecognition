@@ -1,6 +1,6 @@
+import dataclasses as dc
 import os
 
-import dataclasses as dc
 from ignite import metrics
 from torch import cuda, optim
 
@@ -123,7 +123,6 @@ vaei3d_smth_075 = model_opts.RunOptions(
     mode='vae',
     resume=False,
     log_interval=10,
-    patience=10,
     model=vae_i3d.VAEI3D,
     model_opts=model_opts,
     data_bunch=pipe.SmthDataBunch,

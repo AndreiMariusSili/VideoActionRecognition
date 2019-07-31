@@ -41,7 +41,6 @@ class ResidualBlock(nn.Module):
 
 
 class SpatialResNetEncoder(nn.Module):
-
     def __init__(self, out_planes: Tuple[int, ...]):
         super(SpatialResNetEncoder, self).__init__()
         self.in_planes = out_planes[0]
@@ -153,7 +152,7 @@ if __name__ == '__main__':
 
     _input_var = th.randn(2, 4, 3, 224, 224)
 
-    spatial_model = SpatialResNetEncoder((16, 32, 64, 128, 256))
+    spatial_model = SpatialResNetEncoder((64, 128, 256, 512, 1024))
     temporal_model = TemporalResNetEncoder(4, 256, 256)
 
     spatial_feature_maps = spatial_model(_input_var)

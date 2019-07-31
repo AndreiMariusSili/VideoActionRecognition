@@ -36,7 +36,7 @@ class AETimeAlignedResNet(nn.Module):
                                                          self.temporal_in_planes,
                                                          self.temporal_out_planes)
         self.decoder = de.SpatialResNetDecoder(self.temporal_out_planes, self.spatial_decoder_planes)
-        self.classifier = cls.TimeAlignedResNetClassifier(self.temporal_out_planes * self.time_steps,
+        self.classifier = cls.TimeAlignedResNetClassifier(self.temporal_out_planes,
                                                           self.num_classes,
                                                           self.drop_rate)
 
@@ -61,18 +61,18 @@ class AETimeAlignedResNet(nn.Module):
     def _inference(self, _in: th.Tensor) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
         _spatial_out = self.spatial_encoder(_in)
         _temporal_out, _temporal_outs = self.temporal_encoder(_spatial_out)
-        _out, _embed = self.classifier(_temporal_outs)
+        _pred, _embed = self.classifier(_temporal_out)
         _recon = self.decoder(_temporal_outs)
 
-        return _out, _embed, _recon
+        return _pred, _embed, _recon
 
     def _forward(self, _in: th.Tensor) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
         _spatial_out = self.spatial_encoder(_in)
         _temporal_out, _temporal_outs = self.temporal_encoder(_spatial_out)
-        _out, _embed = self.classifier(_temporal_outs)
+        _pred, _embed = self.classifier(_temporal_out)
         _recon = self.decoder(_temporal_outs)
 
-        return _out, _embed, _recon
+        return _pred, _embed, _recon
 
 
 if __name__ == "__main__":

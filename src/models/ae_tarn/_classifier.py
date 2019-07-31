@@ -23,8 +23,10 @@ class TimeAlignedResNetClassifier(nn.Module):
         self.classifier = nn.Conv2d(self.in_planes, self.num_classes, kernel_size=1, bias=True)
 
     def forward(self, _in: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
-        b, t, c, h, w = _in.shape
-        _in = _in.reshape(b, t * c, h, w)
+        # TODO: Remove?
+        # b, t, c, h, w = _in.shape
+        # _in = _in.reshape(b, t * c, h, w)
+        b, c, h, w = _in.shape
 
         _embed = self.aggregation(_in)
         _out = self.classifier(_embed)

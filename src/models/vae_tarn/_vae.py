@@ -41,7 +41,7 @@ class VAETimeAlignedResNet(nn.Module):
                                                                     self.temporal_out_planes)
         self.decoder = de.VariationalSpatialResNetDecoder(self.temporal_out_planes,
                                                           self.spatial_decoder_planes)
-        self.classifier = cls.VariationalTimeAlignedResNetClassifier(self.temporal_out_planes * self.time_steps,
+        self.classifier = cls.VariationalTimeAlignedResNetClassifier(self.temporal_out_planes,
                                                                      self.num_classes,
                                                                      self.drop_rate)
 
@@ -70,7 +70,7 @@ class VAETimeAlignedResNet(nn.Module):
 
         _spatial_embed = self.spatial_encoder(_in)
         _temporal_latent, _temporal_latents, _means, _vars = self.temporal_encoder(_spatial_embed, num_samples)
-        _pred, _final_latent = self.classifier(_temporal_latents)
+        _pred, _class_latent = self.classifier(_temporal_latent)
         _recon = self.decoder(_temporal_latents)
 
         num_samples = max(1, num_samples)
@@ -79,12 +79,12 @@ class VAETimeAlignedResNet(nn.Module):
         else:
             _vote = self._soft_vote(_pred.reshape(bs, num_samples, self.num_classes))
 
-        return _recon, _pred, _final_latent, _means, _vars, _vote
+        return _recon, _pred, _class_latent, _means, _vars, _vote
 
     def _forward(self, _in: th.Tensor, num_samples: int = 1) -> VAE_FORWARD:
         _spatial_embed = self.spatial_encoder(_in)
         _temporal_latent, _temporal_latents, _means, _vars = self.temporal_encoder(_spatial_embed, num_samples)
-        _pred, _class_latent = self.classifier(_temporal_latents)
+        _pred, _class_latent = self.classifier(_temporal_latent)
         _recon = self.decoder(_temporal_latents)
 
         return _recon, _pred, _class_latent, _means, _vars, None
@@ -139,7 +139,7 @@ if __name__ == "__main__":
     print(f'{"recon":20s}:\t{x.shape}')
 
     print("===VARIATIONAL INFERENCE===")
-    x, y, z, mu, sig, v = vae(_in, True, ct.VAE_NUM_SAMPLES)
+    x, y, z, mu, sig, v = vae(_in, True, ct.VAE_NUM_SAMPLES_DEV)
     print(f'{"mean":20s}:\t{mu.shape}')
     print(f'{"log_var":20s}:\t{sig.shape}')
     print(f'{"latent":20s}:\t{z.shape}')

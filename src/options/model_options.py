@@ -66,9 +66,21 @@ class VAEI3DOptions:
 @dc.dataclass
 class TARNOptions:
     time_steps: int
-    drop_rate: float
+    classifier_drop_rate: float
     num_classes: int
     encoder_planes: Tuple[int, ...]
+    class_embed_planes: int
+
+
+@dc.dataclass
+class TADNOptions:
+    time_steps: int
+    temporal_in_planes: int
+    growth_rate: int
+    temporal_drop_rate: float
+    classifier_drop_rate: float
+    num_classes: int
+    class_embed_planes: int
 
 
 @dc.dataclass
@@ -114,9 +126,8 @@ class RunOptions:
     resume: bool
     debug: bool
     log_interval: int
-    patience: int
     model: Any
-    model_opts: Union[I3DOptions, TARNOptions, AEI3DOptions, AETARNOptions, VAEI3DOptions, VAETARNOptions]
+    model_opts: Union[I3DOptions, TADNOptions, TARNOptions, AEI3DOptions, AETARNOptions, VAEI3DOptions, VAETARNOptions]
     data_bunch: Any
     db_opts: pio.DataBunchOptions
     train_ds_opts: pio.DataSetOptions

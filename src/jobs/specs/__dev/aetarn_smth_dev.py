@@ -1,3 +1,5 @@
+import copy
+
 import ignite.metrics as im
 from torch import optim
 
@@ -7,12 +9,12 @@ from jobs.specs.__dev._smth_dev import *
 from models import ae_tarn, criterion, metrics
 from options import model_options
 
-# train_dl_opts = copy.deepcopy(train_dl_opts)
-# dev_dl_opts = copy.deepcopy(dev_dl_opts)
-# valid_dl_opts = copy.deepcopy(valid_dl_opts)
-# train_dl_opts.batch_size = 256
-# dev_dl_opts.batch_size = 256
-# valid_dl_opts.batch_size = 256
+train_dl_opts = copy.deepcopy(train_dl_opts)
+dev_dl_opts = copy.deepcopy(dev_dl_opts)
+valid_dl_opts = copy.deepcopy(valid_dl_opts)
+train_dl_opts.batch_size = 256
+dev_dl_opts.batch_size = 256
+valid_dl_opts.batch_size = 256
 
 ########################################################################################################################
 # MODEL AND OPTIMIZER
@@ -68,7 +70,6 @@ aetarn_smth_dev = model_options.RunOptions(
     resume=False,
     debug=False,
     log_interval=1,
-    patience=50,
     model=ae_tarn.AETimeAlignedResNet,
     model_opts=model_opts,
     data_bunch=smth.SmthDataBunch,

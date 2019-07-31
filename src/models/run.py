@@ -39,7 +39,7 @@ class Run(object):
     resume: bool
     debug: bool
     epochs: int
-    patience: int
+    early_stop_patience: int
     log_interval: int
     model: nn.Module
     criterion: nn.CrossEntropyLoss
@@ -65,18 +65,22 @@ class Run(object):
         self.resume = opts.resume
         self.debug = opts.debug
         self.epochs = opts.trainer_opts.epochs
-        self.patience = opts.patience
         self.log_interval = opts.log_interval
+        self.train_metrics = opts.trainer_opts.metrics
+        self.dev_metrics = opts.evaluator_opts.metrics
         self.opts = copy.deepcopy(opts)
+        self.early_stop_patience = ct.EARLY_STOP_PATIENCE
+        self.lr_patience = ct.LR_PATIENCE
 
         self.rank, self.world_size, self.main_proc, self.distributed = self._init_distributed()
         self.run_dir, self.cut = self._init_record(opts)
         self.logger = self._init_logging()
         self._log(f'Initializing run {opts.name}.')
-        self.device = self._init_device()
 
+        self.device = self._init_device()
         self.model = self._init_model(opts.model, opts.model_opts)
         self._log(self.model)
+        self._log(f'Model size: {hp.count_parameters(self.model):,}')
         self.optimizer = self._init_optimizer(opts.trainer_opts.optimizer, opts.trainer_opts.optimizer_opts)
         self._log(self.optimizer)
         self.criterion = opts.trainer_opts.criterion(**dc.asdict(opts.trainer_opts.criterion_opts)).to(self.device)
@@ -86,8 +90,6 @@ class Run(object):
         self.data_bunch = self._init_data_bunch(opts)
         self._log(self.data_bunch)
 
-        self.train_metrics = opts.trainer_opts.metrics
-        self.dev_metrics = opts.evaluator_opts.metrics
         self.trainer, self.evaluator = self._init_trainer_evaluator()
         train_examples = len(self.data_bunch.train_set)
 
@@ -109,7 +111,7 @@ class Run(object):
         else:
             rank = 0
             world_size = 1
-        return rank, world_size, rank == 0, world_size > 0
+        return rank, world_size, rank == 0, world_size > 1
 
     def _init_record(self, opts: mo.RunOptions) -> Tuple[pl.Path, str]:
         """Create the run directory and store the run options."""
@@ -181,7 +183,7 @@ class Run(object):
         lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,
                                                             mode='max',
                                                             factor=0.5,
-                                                            patience=ct.LR_PATIENCE,
+                                                            patience=self.lr_patience,
                                                             verbose=self.main_proc)
         if self.resume:
             lr_scheduler_path = glob((self.run_dir / 'latest_lr_scheduler_*').as_posix()).pop()
@@ -220,7 +222,7 @@ class Run(object):
             evaluator = me.create_ae_evaluator(self.model, self.dev_metrics, self.device)
         else:
             trainer = me.create_vae_trainer(self.model, self.optimizer, self.criterion, self.train_metrics, self.device)
-            evaluator = me.create_vae_evaluator(self.model, self.dev_metrics, self.device)
+            evaluator = me.create_vae_evaluator(self.model, self.dev_metrics, self.device, True, ct.VAE_NUM_SAMPLES_DEV)
 
         return trainer, evaluator
 
@@ -290,7 +292,7 @@ class Run(object):
     def _init_early_stopping_handler(self) -> None:
         """Initialize a handler that will stop the engine run if no improvement in accuracy@2 has happened for a
         number of epochs."""
-        early_stopper = handlers.EarlyStopping(patience=self.patience,
+        early_stopper = handlers.EarlyStopping(patience=self.early_stop_patience,
                                                score_function=self._negative_val_loss,
                                                trainer=self.trainer)
         self.evaluator.add_event_handler(engine.Events.COMPLETED, early_stopper)

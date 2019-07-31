@@ -44,6 +44,8 @@ class Evaluation(object):
     train_results: pd.DataFrame
     valid_results: pd.DataFrame
     results: pd.DataFrame
+    verbose: bool
+    tsne_sample_size: int
 
     def __init__(self, spec: mo.RunOptions, local_rank: int):
         self.local_rank = local_rank
@@ -68,6 +70,7 @@ class Evaluation(object):
         self.train_evaluator, self.dev_evaluator, self.valid_evaluator = self._init_evaluator()
         self._load_data_bunch()
         self.verbose = True
+        self.tsne_sample_size = ct.TSNE_SAMPLE_SIZE
 
         self.metrics = {
             'train_acc@1': [],
@@ -98,7 +101,7 @@ class Evaluation(object):
         else:
             rank = 0
             world_size = 1
-        return rank, world_size, rank == 0, world_size > 0
+        return rank, world_size, rank == 0, world_size > 1
 
     def _init_logging(self):
         """Get a logger that outputs to console and file. Only log messages if on the main process."""
@@ -130,7 +133,7 @@ class Evaluation(object):
         model.eval()
         model.to(self.device)
         model.load_state_dict(th.load(self.best_ckpt, map_location=self.device))
-        if distributed.is_available() and self.local_rank != -1:
+        if self.distributed:
             if cuda.is_available():
                 if self.world_size > 1:
                     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
@@ -153,9 +156,12 @@ class Evaluation(object):
             dev_evaluator = me.create_ae_evaluator(self.model, self.dev_metrics, self.device, True)
             valid_evaluator = me.create_ae_evaluator(self.model, self.valid_metrics, self.device, True)
         else:
-            train_evaluator = me.create_vae_evaluator(self.model, self.train_metrics, self.device, True)
-            dev_evaluator = me.create_vae_evaluator(self.model, self.dev_metrics, self.device, True)
-            valid_evaluator = me.create_vae_evaluator(self.model, self.valid_metrics, self.device, True)
+            train_evaluator = me.create_vae_evaluator(self.model, self.train_metrics, self.device, True,
+                                                      ct.VAE_NUM_SAMPLES_VALID)
+            dev_evaluator = me.create_vae_evaluator(self.model, self.dev_metrics, self.device, True,
+                                                    ct.VAE_NUM_SAMPLES_VALID)
+            valid_evaluator = me.create_vae_evaluator(self.model, self.valid_metrics, self.device, True,
+                                                      ct.VAE_NUM_SAMPLES_VALID)
 
         return train_evaluator, dev_evaluator, valid_evaluator
 
@@ -172,6 +178,11 @@ class Evaluation(object):
         self.run_opts.dev_dl_opts.num_workers = self.run_opts.dev_dl_opts.num_workers // self.world_size
         self.run_opts.valid_dl_opts.batch_size = self.run_opts.valid_dl_opts.batch_size // self.world_size
         self.run_opts.valid_dl_opts.num_workers = self.run_opts.valid_dl_opts.num_workers // self.world_size
+
+        # if self.mode == 'vae':
+        #     self.run_opts.train_dl_opts.batch_size = 64
+        #     self.run_opts.dev_dl_opts.batch_size = 64
+        #     self.run_opts.valid_dl_opts.batch_size = 64
 
         self.data_bunch = self.run_opts.data_bunch(db_opts=self.run_opts.db_opts,
                                                    train_ds_opts=self.run_opts.train_ds_opts,
@@ -202,6 +213,11 @@ class Evaluation(object):
         results['proj_x1'] = None
         results['proj_x2'] = None
         results['preds'] = None
+        results['embeds'] = None
+
+        # if self.mode == 'vae':
+        #     results['means'] = None
+        #     results['vars'] = None
 
         if split == 'train':
             self.train_results = results
@@ -244,19 +260,39 @@ class Evaluation(object):
             self._calculate_vae_results(dataset, loader, options, results, split)
 
         if self.main_proc:
-            results = hp.read_smth_results(self.run_dir / f'results_{split}_{self.rank}.tar')
-            for rank in range(1, self.world_size):
-                results = results.combine_first(hp.read_smth_results(self.run_dir / f'results_{split}_{rank}.tar'))
-            cols = ['top1_conf', 'top1_pred', 'top2_conf_1', 'top2_conf_2', 'top2_pred_1', 'top2_pred_2', 'preds']
-            for col in cols:
-                assert len(results[results[col].isnull()]) == 0, f'{col}, {len(results[results[col].isnull()])}'
+            results = self._combine_results(split)
+            self._tsne(results)
             results.to_pickle((self.run_dir / f'results_{split}.tar').as_posix(), compression=None)
+            for partial_results in self.run_dir.glob(f'results_{split}_*.tar'):
+                partial_results.unlink()
 
         return self
 
+    def _tsne(self, results: pd.DataFrame):
+        ids = results.index.values
+        targets = results.template_id.values
+        embeds = results.embeds.map(pkl.loads).values
+
+        embed_ids, embeds = self._stratified_sample_latents(ids, targets, embeds)
+
+        tsne = skm.TSNE()
+        latent_projections = tsne.fit_transform(embeds)
+
+        results.loc[embed_ids, ['proj_x1', 'proj_x2']] = latent_projections
+
+    def _combine_results(self, split):
+        results = hp.read_smth_results(self.run_dir / f'results_{split}_{self.rank}.tar')
+        for rank in range(1, self.world_size):
+            results = results.combine_first(hp.read_smth_results(self.run_dir / f'results_{split}_{rank}.tar'))
+        cols = ['top1_conf', 'top1_pred', 'top2_conf_1', 'top2_conf_2', 'top2_pred_1', 'top2_pred_2', 'preds']
+        for col in cols:
+            assert len(results[results[col].isnull()]) == 0, f'{col}, {len(results[results[col].isnull()])}'
+
+        return results
+
     def _calculate_class_results(self, dataset, loader, options, results, split):
         """Calculates the predictions and embeddings over a dataset."""
-        if distributed.is_available():
+        if self.distributed:
             distributed.barrier()
 
         with th.no_grad():
@@ -280,42 +316,37 @@ class Evaluation(object):
                 conf1, top1 = pred_probs.max(dim=-1)
                 conf2, top2 = pred_probs.topk(2, dim=-1)
 
-                preds.append(pred_probs)
-                conf1s.append(conf1)
-                top1s.append(top1)
-                conf2s.append(conf2)
-                top2s.append(top2)
-                embeds.append(embed)
+                preds.append(pred_probs.cpu())
+                embeds.append(embed.cpu())
+                conf1s.append(conf1.cpu())
+                top1s.append(top1.cpu())
+                conf2s.append(conf2.cpu())
+                top2s.append(top2.cpu())
 
                 if self.verbose:
                     self._log(f'[Batch: {i + 1}/{total}]')
 
-        preds = th.cat(tuple(preds), dim=0).cpu().numpy()
-        conf1s = th.cat(tuple(conf1s), dim=0).cpu().numpy()
-        top1s = th.cat(tuple(top1s), dim=0).cpu().numpy()
-        conf2s = th.cat(tuple(conf2s), dim=0).cpu().numpy()
-        top2s = th.cat(tuple(top2s), dim=0).cpu().numpy()
-        embed_ids, embeds = self._stratified_sample_latents(ids, targets, embeds)
-        try:
-            tsne = skm.TSNE()
-            embed_projections = tsne.fit_transform(embeds)
-        except ValueError:
-            embed_projections = np.array([100, 100])
+        preds = th.cat(tuple(preds), dim=0).numpy()
+        embeds = th.cat(tuple(embeds), dim=0).numpy()
+        conf1s = th.cat(tuple(conf1s), dim=0).numpy()
+        top1s = th.cat(tuple(top1s), dim=0).numpy()
+        conf2s = th.cat(tuple(conf2s), dim=0).numpy()
+        top2s = th.cat(tuple(top2s), dim=0).numpy()
 
         results.loc[ids, 'preds'] = [pkl.dumps(pred) for pred in preds]
+        results.loc[ids, 'embeds'] = [pkl.dumps(embed) for embed in embeds]
         results.loc[ids, 'top1_conf'] = conf1s
         results.loc[ids, 'top1_pred'] = top1s
         results.loc[ids, ['top2_conf_1', 'top2_conf_2']] = conf2s.reshape(-1, 2)
         results.loc[ids, ['top2_pred_1', 'top2_pred_2']] = top2s.reshape(-1, 2)
-        results.loc[embed_ids, ['proj_x1', 'proj_x2']] = embed_projections
         results.to_pickle((self.run_dir / f'results_{split}_{self.rank}.tar').as_posix(), compression=None)
 
-        if distributed.is_available():
+        if self.distributed:
             distributed.barrier()
 
     def _calculate_ae_results(self, dataset, loader, options, results, split):
         """Calculates the predictions and embeddings over a dataset."""
-        if distributed.is_available():
+        if self.distributed:
             distributed.barrier()
 
         with th.no_grad():
@@ -339,41 +370,37 @@ class Evaluation(object):
                 conf1, top1 = pred_probs.max(dim=-1)
                 conf2, top2 = pred_probs.topk(2, dim=-1)
 
-                preds.append(pred_probs)
-                conf1s.append(conf1)
-                top1s.append(top1)
-                conf2s.append(conf2)
-                top2s.append(top2)
-                embeds.append(embed)
+                preds.append(pred_probs.cpu())
+                embeds.append(embed.cpu())
+                conf1s.append(conf1.cpu())
+                top1s.append(top1.cpu())
+                conf2s.append(conf2.cpu())
+                top2s.append(top2.cpu())
 
                 if self.verbose:
                     self._log(f'[Batch: {i + 1}/{total}]')
 
-        preds = th.cat(tuple(preds), dim=0).cpu().numpy()
-        conf1s = th.cat(tuple(conf1s), dim=0).cpu().numpy()
-        top1s = th.cat(tuple(top1s), dim=0).cpu().numpy()
-        conf2s = th.cat(tuple(conf2s), dim=0).cpu().numpy()
-        top2s = th.cat(tuple(top2s), dim=0).cpu().numpy()
-        embed_ids, embeds = self._stratified_sample_latents(ids, targets, embeds)
-        try:
-            tsne = skm.TSNE()
-            embed_projections = tsne.fit_transform(embeds)
-        except ValueError:
-            embed_projections = np.array([100, 100])
+        preds = th.cat(tuple(preds), dim=0).numpy()
+        embeds = th.cat(tuple(embeds), dim=0).numpy()
+        conf1s = th.cat(tuple(conf1s), dim=0).numpy()
+        top1s = th.cat(tuple(top1s), dim=0).numpy()
+        conf2s = th.cat(tuple(conf2s), dim=0).numpy()
+        top2s = th.cat(tuple(top2s), dim=0).numpy()
 
         results.loc[ids, 'preds'] = [pkl.dumps(pred) for pred in preds]
+        results.loc[ids, 'embeds'] = [pkl.dumps(embed) for embed in embeds]
         results.loc[ids, 'top1_conf'] = conf1s
         results.loc[ids, 'top1_pred'] = top1s
         results.loc[ids, ['top2_conf_1', 'top2_conf_2']] = conf2s.reshape(-1, 2)
         results.loc[ids, ['top2_pred_1', 'top2_pred_2']] = top2s.reshape(-1, 2)
-        results.loc[embed_ids, ['proj_x1', 'proj_x2']] = embed_projections
+
         results.to_pickle((self.run_dir / f'results_{split}_{self.rank}.tar').as_posix(), compression=None)
 
-        if distributed.is_available():
+        if self.distributed:
             distributed.barrier()
 
     def _calculate_vae_results(self, dataset, loader, options, results, split):
-        if distributed.is_available():
+        if self.distributed:
             distributed.barrier()
 
         with th.no_grad():
@@ -383,6 +410,7 @@ class Evaluation(object):
             total = len(dataset) // batch_size + int(len(dataset) % batch_size > 0)
 
             ids, targets, preds, conf1s, top1s, conf2s, top2s, latents = [], [], [], [], [], [], [], []
+            # means, _vars = [], []
             for i, (video_data, video_labels, videos, labels) in enumerate(loader):
                 x = video_data.to(device=self.device, non_blocking=True)
                 x = NORMALIZE(x)
@@ -391,7 +419,7 @@ class Evaluation(object):
                 ids.extend([video.meta.id for video in videos])
                 targets.extend([label.data for label in labels])
 
-                _recon, _pred, _latent, _mean, _var, _vote = self.model(x, True, ct.VAE_NUM_SAMPLES)
+                _recon, _pred, _latent, _mean, _var, _vote = self.model(x, True, ct.VAE_NUM_SAMPLES_DEV)
 
                 bs, ns, nc = _pred.shape
 
@@ -399,50 +427,52 @@ class Evaluation(object):
 
                 conf2, top2 = _vote.topk(2, dim=-1)
 
-                preds.append(_vote)
-                conf1s.append(conf1)
-                top1s.append(top1)
-                conf2s.append(conf2)
-                top2s.append(top2)
-
+                preds.append(_vote.cpu())
                 _latent = _latent.mean(dim=1).reshape(bs, -1)
-                latents.append(_latent)
+                latents.append(_latent.cpu())
+                # means.append(_mean.cpu())
+                # _vars.append(_var.cpu())
+                conf1s.append(conf1.cpu())
+                top1s.append(top1.cpu())
+                conf2s.append(conf2.cpu())
+                top2s.append(top2.cpu())
 
                 if self.verbose:
                     self._log(f'[Batch: {i + 1}/{total}]')
 
-        preds = th.cat(tuple(preds), dim=0).cpu().numpy()
-        conf1s = th.cat(tuple(conf1s), dim=0).cpu().numpy()
-        top1s = th.cat(tuple(top1s), dim=0).cpu().numpy()
-        conf2s = th.cat(tuple(conf2s), dim=0).cpu().numpy()
-        top2s = th.cat(tuple(top2s), dim=0).cpu().numpy()
-        latent_ids, latents = self._stratified_sample_latents(ids, targets, latents)
-        try:
-            tsne = skm.TSNE()
-            latent_projections = tsne.fit_transform(latents)
-        except ValueError:
-            latent_projections = np.array([100, 100])
+        preds = th.cat(tuple(preds), dim=0).numpy()
+        latents = th.cat(tuple(latents), dim=0).numpy()
+        # means = th.cat(tuple(means), dim=0).numpy()
+        # _vars = th.cat(tuple(_vars), dim=0).numpy()
+
+        conf1s = th.cat(tuple(conf1s), dim=0).numpy()
+        top1s = th.cat(tuple(top1s), dim=0).numpy()
+        conf2s = th.cat(tuple(conf2s), dim=0).numpy()
+        top2s = th.cat(tuple(top2s), dim=0).numpy()
 
         results.loc[ids, 'preds'] = [pkl.dumps(pred) for pred in preds]
+        results.loc[ids, 'embeds'] = [pkl.dumps(latent) for latent in latents]
+        # results.loc[ids, 'means'] = [pkl.dumps(mean) for mean in means]
+        # results.loc[ids, 'vars'] = [pkl.dumps(var) for var in _vars]
         results.loc[ids, 'top1_conf'] = conf1s
         results.loc[ids, 'top1_pred'] = top1s
         results.loc[ids, ['top2_conf_1', 'top2_conf_2']] = conf2s.reshape(-1, 2)
         results.loc[ids, ['top2_pred_1', 'top2_pred_2']] = top2s.reshape(-1, 2)
-        results.loc[latent_ids, ['proj_x1', 'proj_x2']] = latent_projections
+
         results.to_pickle((self.run_dir / f'results_{split}_{self.rank}.tar').as_posix(), compression=None)
 
-        if distributed.is_available():
+        if self.distributed:
             distributed.barrier()
 
     def _calculate_metrics(self, evaluator: engine.Engine, loader: Any, split: str):
         """Calculate metrics using an evaluator engine."""
-        if distributed.is_available():
+        if self.distributed:
             distributed.barrier()
         evaluator.run(loader)
-        if distributed.is_available():
+        if self.distributed:
             distributed.barrier()
-
-        self._aggregate_metrics(evaluator, split)
+        if self.distributed:
+            self._aggregate_metrics(evaluator, split)
 
     def _aggregate_metrics(self, _engine: engine.Engine, split: str) -> None:
         """Gather evaluation metrics. Performs a reduction step if in distributed setting."""
@@ -465,13 +495,11 @@ class Evaluation(object):
     def _stratified_sample_latents(self, ids: List[int], targets: List[int], latents: List[th.Tensor]) -> Tuple[
         np.ndarray, np.ndarray]:
         """Sample latents uniformly across across classes."""
-        latents = [latent.cpu().numpy() for latent in latents]
-        latents = [row for batch in latents for row in batch]
         df = pd.DataFrame(zip(ids, targets, latents), columns=['ids', 'targets', 'latents'])
 
         samples = []
         for target in df.targets.unique():
-            sample = df[df.targets == target][0:ct.TSNE_SAMPLE_SIZE]
+            sample = df[df.targets == target][0:self.tsne_sample_size]
             samples.append(sample)
         sample = pd.concat(samples, axis=0, verify_integrity=True)
 
@@ -487,11 +515,11 @@ class Evaluation(object):
         try:
             self.evaluate_split('train').evaluate_split('dev').evaluate_split('valid')
 
-            if distributed.is_available():
+            if self.distributed:
                 distributed.barrier()
 
             if self.main_proc:
-                self.metrics.update(source=[self.name])
+                self.metrics.update(source=[self.name], model_size=f'{hp.count_parameters(self.model):,}')
                 row = pd.DataFrame(data=self.metrics).set_index('source')
                 if self.name in self.results.index:
                     self.results.update(row)

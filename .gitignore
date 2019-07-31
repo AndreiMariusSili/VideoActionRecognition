@@ -2,7 +2,8 @@
 
 .idea/**/workspace.xml
 .idea/**/dictionaries
-data
+data/*/smth/webm
+data/*/smth/jpeg
 src/models/i3d/checkpoints
 runs
 **.pyc

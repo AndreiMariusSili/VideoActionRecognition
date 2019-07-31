@@ -1,3 +1,5 @@
+import copy
+
 import ignite.metrics as im
 from torch import nn, optim
 
@@ -7,12 +9,12 @@ from jobs.specs.__dev._smth_dev import *
 from models import metrics, tarn
 from options import model_options
 
-# train_dl_opts = copy.deepcopy(train_dl_opts)
-# dev_dl_opts = copy.deepcopy(dev_dl_opts)
-# valid_dl_opts = copy.deepcopy(valid_dl_opts)
-# train_dl_opts.batch_size = 512
-# dev_dl_opts.batch_size = 512
-# valid_dl_opts.batch_size = 512
+train_dl_opts = copy.deepcopy(train_dl_opts)
+dev_dl_opts = copy.deepcopy(dev_dl_opts)
+valid_dl_opts = copy.deepcopy(valid_dl_opts)
+train_dl_opts.batch_size = 256
+dev_dl_opts.batch_size = 256
+valid_dl_opts.batch_size = 256
 
 ########################################################################################################################
 # MODEL AND OPTIMIZER
@@ -20,7 +22,7 @@ from options import model_options
 model_opts = model_options.TARNOptions(
     num_classes=ct.SMTH_NUM_CLASSES,
     time_steps=4,
-    drop_rate=0.0,
+    classifier_drop_rate=0.0,
     encoder_planes=(16, 32, 64, 128, 256),
 )
 optimizer_opts = model_options.AdamOptimizerOptions(
@@ -58,7 +60,6 @@ tarn_smth_dev = model_options.RunOptions(
     resume=False,
     debug=False,
     log_interval=1,
-    patience=50,
     model=tarn.TimeAlignedResNet,
     model_opts=model_opts,
     data_bunch=smth.SmthDataBunch,

@@ -6,8 +6,13 @@ from typing import Any, Dict, List, Tuple, Union
 
 import pandas as pd
 import requests
+from torch import nn
 
 import constants as ct
+
+
+def count_parameters(model: nn.Module) -> int:
+    return sum(p.numel() for p in model.parameters())
 
 
 def change_setting(path: pl.Path, _from: str, _to: str) -> str:

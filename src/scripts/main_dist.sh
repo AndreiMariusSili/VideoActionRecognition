@@ -6,4 +6,4 @@ NUM_GPU=$3
 RESUME=$4
 
 cd ../ &&
-${MT_ENV}/bin/python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} main.py ${JOB} -o spec:${SPEC} -r ${RESUME}
+"${MT_ENV}"/bin/python -m torch.distributed.launch --nproc_per_node="${NUM_GPU}" main.py "${JOB}" -o spec:"${SPEC}" -r "${RESUME}"

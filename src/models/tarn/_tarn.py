@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch as th
 from torch import nn
@@ -18,21 +18,26 @@ class TimeAlignedResNet(nn.Module):
     drop_rate: float
     num_classes: int
 
-    def __init__(self, time_steps: int, drop_rate: float, num_classes: int, encoder_planes: Tuple[int, ...]):
+    def __init__(self, time_steps: int, classifier_drop_rate: float, num_classes: int, encoder_planes: Tuple[int, ...],
+                 class_embed_planes: Optional[int] = None):
         super(TimeAlignedResNet, self).__init__()
 
         self.spatial_encoder_planes = encoder_planes
         self.temporal_in_planes = self.temporal_out_planes = encoder_planes[-1]
 
         self.time_steps = time_steps
-        self.drop_rate = drop_rate
+        self.drop_rate = classifier_drop_rate
         self.num_classes = num_classes
+        self.class_embed_planes = class_embed_planes
+
+        self.class_in_planes = self.temporal_out_planes
 
         self.spatial_encoder = en.SpatialResNetEncoder(self.spatial_encoder_planes)
         self.temporal_encoder = en.TemporalResNetEncoder(self.time_steps,
                                                          self.temporal_in_planes,
                                                          self.temporal_out_planes)
-        self.classifier = cls.TimeAlignedResNetClassifier(self.temporal_out_planes * self.time_steps,
+        self.classifier = cls.TimeAlignedResNetClassifier(self.class_in_planes,
+                                                          self.class_embed_planes,
                                                           self.drop_rate,
                                                           self.num_classes)
 
@@ -49,19 +54,20 @@ class TimeAlignedResNet(nn.Module):
                 module.bias.data.zero_()
 
     def forward(self, _in: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
-        b, t, c, h, w = _in.shape
+        _spatial_out = self.spatial_encoder(_in)
+        _temporal_out, _temporal_outs = self.temporal_encoder(_spatial_out)
+        _pred, _embed = self.classifier(_temporal_out)
 
-        _out = self.spatial_encoder(_in)
-        _out, _outs = self.temporal_encoder(_out)
-        _out, _embed = self.classifier(_outs)
-
-        return _out.reshape(b, self.num_classes), _embed.reshape(b, -1)
+        return _pred, _embed
 
 
 if __name__ == "__main__":
-    import models.helpers
+    import models.helpers as hp
 
     _input_var = th.randn(2, 4, 3, 224, 224)
-    model = TimeAlignedResNet(4, 0.5, 30, (16, 32, 64, 128, 256))
+    model = TimeAlignedResNet(4, 0.0, 30, (32, 64, 128, 256), 512)
     output, embeds = model(_input_var)
-    print(output.shape, f'{models.helpers.count_parameters(model):,}')
+    print(f'{hp.count_parameters(model):,}')
+    print(f'{hp.count_parameters(model.spatial_encoder):,}')
+    print(f'{hp.count_parameters(model.temporal_encoder):,}')
+    print(f'{hp.count_parameters(model.classifier):,}')

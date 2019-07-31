@@ -1,8 +1,6 @@
 #!/bin/bash
 
 MY_PROGRAM="bash" # For example, "apache2" or "nginx"
-MY_USER="Play"
-BUCKET_NAME="mt-buffer" # For example, "my-checkpoint-files" (without gs://)
 
 echo "Shutting down!  Seeing if ${MY_PROGRAM} is running."
 
@@ -22,16 +20,16 @@ curl curl -X POST -H 'Content-type: application/json' --data "{
 # Find the newest copy of $MY_PROGRAM
 PIDS="$(pgrep -n ${MY_PROGRAM})"
 
-if [[ ${?} -ne 0 ]]; then
+if [[ "${?}" -ne 0 ]]; then
   echo "${MY_PROGRAM} not running, shutting down immediately."
   exit 0
 fi
 
 echo "${MY_PROGRAM} is running: ${PIDS}."
-kill -2 ${PIDS}
+kill -2 "${PIDS}"
 
 # Portable waitpid equivalent
-while kill -0 ${PIDS}; do
+while kill -0 "${PIDS}"; do
    sleep 1
 done
 
@@ -45,10 +43,10 @@ if [[ ${?} -ne 0 ]]; then
 fi
 
 echo "${MY_PROGRAM} is running: ${PIDS}."
-kill -2 ${PIDS}
+kill -2 "${PIDS}"
 
 # Portable waitpid equivalent
-while kill -0 ${PIDS}; do
+while kill -0 "${PIDS}"; do
    sleep 1
 done
 

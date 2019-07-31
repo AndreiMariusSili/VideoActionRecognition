@@ -124,7 +124,6 @@ i3d_smth_050 = model_options.RunOptions(
     mode='class',
     resume=False,
     log_interval=10,
-    patience=10,
     model=i3d.I3D,
     model_opts=model_opts,
     data_bunch=smth.SmthDataBunch,

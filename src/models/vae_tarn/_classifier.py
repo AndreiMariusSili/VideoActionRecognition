@@ -22,8 +22,11 @@ class VariationalTimeAlignedResNetClassifier(nn.Module):
         self.classifier = nn.Conv2d(self.in_planes, self.num_classes, kernel_size=1, bias=False)
 
     def forward(self, _in: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
-        b, s, t, c, h, w = _in.shape
-        _in = _in.reshape(b * s, t * c, h, w)
+        # TODO: Remove?
+        # b, s, t, c, h, w = _in.shape
+        # _in = _in.reshape(b * s, t * c, h, w)
+        b, s, c, h, w = _in.shape
+        _in = _in.reshape(b * s, c, h, w)
 
         _embed = self.aggregation(_in)
         _out = self.classifier(_embed)

@@ -110,7 +110,7 @@ if __name__ == '__main__':
     print(f'{"recon":20s}:\t{x.shape}')
 
     print("===VARIATIONAL INFERENCE===")
-    x, y, z, mu, sig, v = vae(_in, True, ct.VAE_NUM_SAMPLES)
+    x, y, z, mu, sig, v = vae(_in, True, ct.VAE_NUM_SAMPLES_DEV)
     print(f'{"mean":20s}:\t{mu.shape}')
     print(f'{"log_var":20s}:\t{sig.shape}')
     print(f'{"latent":20s}:\t{z.shape}')

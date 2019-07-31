@@ -1,9 +1,8 @@
+import dataclasses as dc
 import pathlib as pl
 from typing import Optional, Tuple, Union
 
-import dataclasses as dc
-
-import pipeline as pipe
+import pipeline.transforms as pit
 
 __all__ = ['DataBunchOptions', 'DataSetOptions', 'DataOptions', 'SamplingOptions', 'DataLoaderOptions']
 
@@ -26,7 +25,7 @@ class DataOptions:
     meta_path: pl.Path
     cut: float
     setting: Optional[str] = None
-    transform: Optional['pipe.VideoCompose'] = None
+    transform: Optional['pit.VideoCompose'] = None
     keep: Optional[float] = None
 
 
