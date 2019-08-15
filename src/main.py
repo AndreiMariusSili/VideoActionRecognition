@@ -1,5 +1,5 @@
 import argparse
-from typing import Any, Dict
+from typing import Dict
 
 import env
 import jobs
@@ -17,7 +17,7 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def parse_options(opts: str) -> Dict[str, Any]:
+def parse_options(opts: str) -> Dict[str, str]:
     """Parse an options string from key1:value1,key2:value2 to dict representation."""
     pairs = opts.strip().split(',')
     parsed: Dict[str, str] = {}
@@ -35,7 +35,10 @@ def main(args):
     job, opts = args.job, parse_options(args.opts)
     opts['resume'] = args.resume
     opts['local_rank'] = args.local_rank
-    if job == 'create_dummy_set':
+
+    if job == 'setup':
+        jobs.setup(job_options.SetupOptions(**opts))
+    elif job == 'create_dummy_set':
         jobs.create_dummy_set(job_options.CreateDummySetOptions(**opts))
     elif job == 'prepro_set':
         jobs.prepro_set(job_options.PreproSetOptions(**opts))
@@ -55,7 +58,7 @@ if __name__ == '__main__':
     parser.add_argument('job',
                         type=str,
                         help='The job to start.',
-                        choices=['create_dummy_set', 'prepro_set', 'prepare_model', 'evaluate_model', 'run_model'])
+                        choices=['setup', 'create_dummy_set', 'prepro_set', 'run_model', 'evaluate_model'])
     parser.add_argument('-o', '--opts', required=False,
                         type=str,
                         help='Optional arguments to be passed to the job formatted as key1:value1,key2:value2',

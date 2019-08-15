@@ -31,6 +31,14 @@ def _get_spec(opts: OPTIONS) -> mo.RunOptions:
     return spec
 
 
+def setup(opts: job_options.SetupOptions) -> None:
+    if opts.set == 'smth':
+        import prepro.smth
+        prepro.smth.setup()
+    else:
+        raise ValueError(f'Unknown options: {opts}')
+
+
 def create_dummy_set(opts: job_options.CreateDummySetOptions) -> None:
     """Create a dummy subset of the full dataset specified in opts."""
     if opts.set == 'smth':
@@ -46,10 +54,11 @@ def prepro_set(opts: job_options.PreproSetOptions) -> None:
         import prepro.smth
         prepro.smth.gather_dimension_stats()
         prepro.smth.gather_dist_stats()
-        prepro.smth.extract_jpeg()
         prepro.smth.augment_meta()
-        prepro.smth.merge_meta()
         prepro.smth.split_train_dev()
+        prepro.smth.merge_meta()
+        if opts.jpeg:
+            prepro.smth.extract_jpeg()
     else:
         raise ValueError(f'Unknown options: {opts}')
 

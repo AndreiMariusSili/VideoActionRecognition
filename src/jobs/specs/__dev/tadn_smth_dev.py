@@ -21,9 +21,12 @@ valid_dl_opts.batch_size = 256
 ########################################################################################################################
 model_opts = model_options.TADNOptions(
     time_steps=4,
+    temporal_in_planes=256,
     growth_rate=64,
-    drop_rate=0.0,
+    temporal_drop_rate=0.0,
+    classifier_drop_rate=0.5,
     num_classes=ct.SMTH_NUM_CLASSES,
+    class_embed_planes=512
 )
 optimizer_opts = model_options.AdamOptimizerOptions(
     lr=0.001

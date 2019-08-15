@@ -6,6 +6,7 @@ from torch import nn
 from models.tarn import _helpers as hp
 
 
+# noinspection DuplicatedCode
 class ResidualBlock(nn.Module):
     expansion = 1
 
@@ -40,6 +41,7 @@ class ResidualBlock(nn.Module):
         return _out
 
 
+# noinspection DuplicatedCode
 class SpatialResNetEncoder(nn.Module):
     def __init__(self, out_planes: Tuple[int, ...]):
         super(SpatialResNetEncoder, self).__init__()
@@ -88,13 +90,17 @@ class SpatialResNetEncoder(nn.Module):
         return _out.reshape(b, t, c, h, w)
 
 
+# noinspection DuplicatedCode
 class TemporalResidualBlock(nn.Module):
     expansion = 1
 
     def __init__(self, in_planes: int, out_planes: int, stride: int = 1):
         super(TemporalResidualBlock, self).__init__()
 
-        self.conv1 = hp.conv3x3(in_planes, out_planes, stride)
+        if in_planes != out_planes:
+            self.bottleneck = hp.conv1x1(in_planes, out_planes)
+
+        self.conv1 = hp.conv3x3(out_planes, out_planes, stride)
         self.bn1 = nn.BatchNorm2d(out_planes)
         self.relu = nn.ReLU()
         self.conv2 = hp.conv3x3(out_planes, out_planes)
@@ -102,7 +108,11 @@ class TemporalResidualBlock(nn.Module):
         self.stride = stride
 
     def forward(self, _in: th.Tensor, _prev: Optional[th.Tensor] = None) -> th.Tensor:
+        if self.bottleneck is not None:
+            _in = self.bottleneck(_in)
+
         _out = _in
+
         if _prev is not None:
             _out = _in.add(_prev)
 
@@ -119,6 +129,7 @@ class TemporalResidualBlock(nn.Module):
         return _out
 
 
+# noinspection DuplicatedCode
 class TemporalResNetEncoder(nn.Module):
     def __init__(self, time_steps: int, in_planes: int, out_planes: int):
         super(TemporalResNetEncoder, self).__init__()

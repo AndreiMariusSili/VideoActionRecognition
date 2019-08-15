@@ -107,7 +107,12 @@ class MultiLabelIoU(im.Metric):
     def __init__(self, output_transform=lambda x: x):
         self.IoU = 0
         self.num_examples = 0
-        self.lid2gid = hp.read_smth_lid2gid()
+
+        try:
+            self.lid2gid = hp.read_smth_lid2gid()
+        except FileNotFoundError:
+            self.lid2gid = None
+
         super(MultiLabelIoU, self).__init__(output_transform=output_transform)
 
     def reset(self):
@@ -139,6 +144,11 @@ class MultiLabelIoU(im.Metric):
 
         for i, true_gid_set in enumerate(gids_true):
             lid_pred = lids_pred[i, :]
+
+            k = 0
+            for gid in true_gid_set:
+                k += self.lid2gid['gid'] == gid
+
             topk_lid_pred = th.topk(lid_pred, k=len(true_gid_set))[1].cpu().numpy()
 
             pred_gid_set = set()

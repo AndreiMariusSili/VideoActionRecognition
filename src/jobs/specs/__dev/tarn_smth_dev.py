@@ -20,10 +20,11 @@ valid_dl_opts.batch_size = 256
 # MODEL AND OPTIMIZER
 ########################################################################################################################
 model_opts = model_options.TARNOptions(
-    num_classes=ct.SMTH_NUM_CLASSES,
     time_steps=4,
-    classifier_drop_rate=0.0,
-    encoder_planes=(16, 32, 64, 128, 256),
+    classifier_drop_rate=0.5,
+    num_classes=ct.SMTH_NUM_CLASSES,
+    encoder_planes=(32, 64, 128, 256),
+    class_embed_planes=512
 )
 optimizer_opts = model_options.AdamOptimizerOptions(
     lr=0.001

@@ -1,9 +1,11 @@
 # Created by .ignore support plugin (hsz.mobi)
 
-.idea/**/workspace.xml
-.idea/**/dictionaries
-data/*/smth/webm
-data/*/smth/jpeg
-src/models/i3d/checkpoints
-runs
+.idea
+
 **.pyc
+**.tar
+**.webm
+**.jpeg
+
+env
+runs

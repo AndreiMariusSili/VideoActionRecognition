@@ -16,7 +16,7 @@ def _create_dummy_groups() -> pd.DataFrame:
     global RANDOM_STATE
     RANDOM_STATE += 1
     logging.info(f'Current random seed: {RANDOM_STATE}')
-    full_gid2labels = hp.read_smth_gid2labels(hp.change_setting(ct.SMTH_GID2LABELS, ct.SETTING, 'full'))
+    full_gid2labels = hp.read_smth_gid2labels(hp.change_setting(ct.SMTH_GID2LABELS, ct.SETTING, 'full').as_posix())
     group_counts = full_gid2labels.groupby('id', as_index=False).count()
     groups_of_2 = group_counts[group_counts['template'] == 2]
     sampled_groups = groups_of_2[['id']].sample(ct.SMTH_NUM_CONTRASTIVE_GROUPS_SAMPLES, random_state=RANDOM_STATE)
@@ -49,7 +49,7 @@ def _create_dummy_labels(full_labels: pd.DataFrame, dummy_labels2lid: pd.DataFra
 
 def _create_dummy_labels2lid_lid2labels(contrastive_groups: pd.DataFrame) -> None:
     """Create labels2lid from contrastive groups."""
-    full_labels2lid = hp.read_smth_label2lid(hp.change_setting(ct.SMTH_LABEL2LID, ct.SETTING, 'full'))
+    full_labels2lid = hp.read_smth_label2lid(hp.change_setting(ct.SMTH_LABEL2LID, ct.SETTING, 'full').as_posix())
     dummy_labels2lid = contrastive_groups[['template']].join(full_labels2lid[['id']], on='template')
     dummy_labels2lid['id'] = range(0, len(dummy_labels2lid))
 
@@ -64,7 +64,7 @@ def _create_dummy_inputs(dummy_labels: pd.DataFrame) -> Tuple[str, str, int]:
     """Copy .webm files with an id in the dummy labels DataFrame to the dummy folder."""
     os.makedirs(ct.SMTH_WEBM_DIR, exist_ok=True)
 
-    smth_full_raw_data = hp.change_setting(ct.SMTH_WEBM_DIR, ct.SETTING, 'full')
+    smth_full_raw_data = hp.change_setting(ct.SMTH_WEBM_DIR, ct.SETTING, 'full').as_posix()
     for _id in dummy_labels['id']:
         shutil.copy(f'{os.path.join(smth_full_raw_data, _id)}.webm', f'{os.path.join(ct.SMTH_WEBM_DIR, _id)}.webm')
 
@@ -75,9 +75,6 @@ def main():
     """Create dummy sets for the something-something dataset based on a random selection of contrastive groups.
         The groups might be non-mutually-exclusive so the sampling is repeated until this condition is met."""
     try:
-        os.makedirs(ct.SMTH_META_DATA_DIR, exist_ok=True)
-        os.makedirs(ct.SMTH_JPEG_DIR, exist_ok=True)
-        os.makedirs(ct.SMTH_WEBM_DIR, exist_ok=True)
         logging.info('Creating something-something dummy dataset...')
         # create dummy labels
         contrastive_groups = None

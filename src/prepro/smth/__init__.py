@@ -4,4 +4,5 @@ from prepro.smth._extract_jpeg import main as extract_jpeg
 from prepro.smth._gather_dimension_stats import main as gather_dimension_stats
 from prepro.smth._gather_dist_stats import main as gather_dist_stats
 from prepro.smth._merge_meta import main as merge_meta
+from prepro.smth._setup import main as setup
 from prepro.smth._split_train_dev import main as split_train_dev

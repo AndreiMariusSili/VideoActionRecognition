@@ -41,7 +41,7 @@ class Video(object):
 
     def __get_frame_indices(self):
         """Get a cut of the entire video."""
-        if ct.READ_JPEG:
+        if ct.SMTH_READ_JPEG:
             all_frame_paths = np.array(sorted(glob(f'{self.meta.jpeg_path}/*.jpeg')))
             cut_frame_paths = all_frame_paths[0:self.cut]
 
@@ -66,7 +66,7 @@ class Video(object):
     def __random_sample_segments(self, cut_frame_indices: np.ndarray):
         """Split the video into segments and uniformly random sample from each segment. If the segment is smaller than
         the sample size, sample with replacement to duplicate some frames."""
-        if ct.READ_JPEG:
+        if ct.SMTH_READ_JPEG:
             segments = np.array_split(cut_frame_indices, self.num_segments)
             segments = [segment for segment in segments if segment.size > 0]
             sample = []
@@ -97,7 +97,7 @@ class Video(object):
         return cut_frame_paths[sample_indices]
 
     def __get_frame_data(self):
-        if ct.READ_JPEG:
+        if ct.SMTH_READ_JPEG:
             return [Image.open(path) for path in self.indices]
         else:
             video = io.vread(self.meta.webm_path, num_frames=self.cut)

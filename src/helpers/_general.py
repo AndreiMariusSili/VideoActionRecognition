@@ -15,14 +15,14 @@ def count_parameters(model: nn.Module) -> int:
     return sum(p.numel() for p in model.parameters())
 
 
-def change_setting(path: pl.Path, _from: str, _to: str) -> str:
+def change_setting(path: pl.Path, _from: str, _to: str) -> pl.Path:
     """Switch between setting pointers for a path."""
     settings = ['dummy', 'full']
     assert _from in settings, f'Unknown _from: {_from}. Possible values {settings}.'
     assert _to in settings, f'Unknown _to: {_to}. Possible values {settings}.'
     assert _from != _to, f'Identical _from and _to.'
 
-    return path.as_posix().replace(f'/{_from}/', f'/{_to}/')
+    return pl.Path(path.as_posix().replace(f'/{_from}/', f'/{_to}/'))
 
 
 def get_smth_videos() -> List[str]:
