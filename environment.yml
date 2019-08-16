@@ -1,4 +1,4 @@
-name: env
+name: mt
 channels:
   - defaults
   - conda-forge

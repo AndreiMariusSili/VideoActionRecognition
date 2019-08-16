@@ -1,5 +1,4 @@
 import glob
-import json
 import pathlib as pl
 from datetime import datetime
 from typing import Any, Dict, List, Tuple, Union
@@ -46,78 +45,39 @@ def read_smth_meta(path: Union[pl.Path, str]) -> pd.DataFrame:
 def read_smth_results(path: Union[pl.Path, str]) -> pd.DataFrame:
     """Read in the results json as a DataFrame."""
     path = pl.Path(path)
-    # with path.open('r', encoding='utf-8') as file:
-    df = pd.read_pickle(path.as_posix(), compression=None)
-    df = df.set_index('id', drop=False, verify_integrity=True)
-    df.index = df.index.map(str)
+    df = pd.read_pickle(path, compression=None)
 
-    return df
-
-
-def read_smth_embeddings(path: Union[pl.Path, str]) -> pd.DataFrame:
-    """Read in the results json as a DataFrame."""
-    path = pl.Path(path)
-    with path.open('r', encoding='utf-8') as file:
-        df = pd.read_json(file, orient='records', typ='frame', dtype=False, encoding='utf-8')
-    df.y = df.y.map(str)
     return df
 
 
 def read_smth_stats(path: pl.Path = ct.SMTH_STATS_MERGED) -> pd.DataFrame:
     """Read in the stats json as a DataFrame."""
-    with path.open('r', encoding='utf-8') as file:
-        df = pd.read_json(file, orient='record', typ='frame', dtype=False)
+    df = pd.read_json(path, orient='record', typ='frame', dtype=False)
 
     return df
 
 
 def read_smth_label2lid(path: str = ct.SMTH_LABEL2LID) -> pd.DataFrame:
     """Read in the label2id json as a DataFrame. If json is not in record format, will convert it first."""
-    try:
-        df = pd.read_json(path, orient='index', typ='frame', dtype=True, encoding='utf-8')
-    except ValueError:
-        with open(path) as file:
-            label2lid: Dict[str, str] = json.load(file)
-        # noinspection PyTypeChecker
-        label2lid: List[Dict[str, str]] = list(map(_create_label2lid_record, label2lid.items()))
-        df = pd.read_json(json.dumps(label2lid), orient='records', typ='frame', dtype=True, encoding='utf-8')
-        df = df.set_index('template', drop=False, verify_integrity=True)
-        df.index = df.index.map(str)
+    df = pd.read_json(path, orient='index', typ='frame', dtype=False)
 
     return df
 
 
 def read_smth_lid2label(path: str = ct.SMTH_LABEL2LID) -> pd.DataFrame:
     """Read in the label2lid json as a DataFrame and convert to lid2labels."""
-    try:
-        df = pd.read_json(path, orient='index', typ='frame', dtype=True, encoding='utf-8')
-    except ValueError:
-        with open(path) as file:
-            label2lid: Dict[str, str] = json.load(file)
-        # noinspection PyTypeChecker
-        label2lid: List[Dict[str, str]] = list(map(_create_label2lid_record, label2lid.items()))
-        df = pd.read_json(json.dumps(label2lid), orient='records', typ='frame', dtype=True, encoding='utf-8')
-
+    df = pd.read_json(path, orient='index', typ='frame', dtype=True, encoding='utf-8')
     df = df.set_index('id', drop=False, verify_integrity=True)
-    df.index = df.index.map(int)
 
     return df
 
 
 def read_smth_gid2labels(path: str = ct.SMTH_GID2LABELS) -> pd.DataFrame:
     """Read in the gid2labels json as a DataFrame."""
-    try:
-        df = pd.read_json(path, orient='index', typ='frame', dtype=True, encoding='utf-8')
-    except ValueError:
-        with open(path) as file:
-            gid2labels: Dict[str, str] = json.load(file)
-        # noinspection PyTypeChecker
-        gid2labels: List[List[Dict[str, str]]] = list(map(_create_gid2labels_record, gid2labels.items()))
-        flat_gid2labels = [item for sublist in gid2labels for item in sublist]
-        df = pd.read_json(json.dumps(flat_gid2labels), orient='records', typ='frame', dtype=True, encoding='utf-8')
-    _range = pd.RangeIndex(0, len(df))
-    df = df.set_index(['id', _range], drop=False, verify_integrity=True)
-    df.index = df.index.map(lambda _tuple: (int(_tuple[0]), int(_tuple[1])))
+    df = pd.read_json(path, 'index')
+    df.index = df.index.map(lambda x: (int(x.replace('[', '').replace(']', '').split(',')[0]),
+                                       int(x.replace('[', '').replace(']', '').split(',')[1])))
+
     df = df.rename_axis(index=['group_id', 'range'])
 
     return df
@@ -125,17 +85,7 @@ def read_smth_gid2labels(path: str = ct.SMTH_GID2LABELS) -> pd.DataFrame:
 
 def read_smth_label2gid(path: str = ct.SMTH_LABEL2GID) -> pd.DataFrame:
     """Read in the gid2labels json as a DataFrame."""
-    try:
-        df = pd.read_json(path, orient='index', typ='frame', dtype=True, encoding='utf-8')
-    except ValueError:
-        with open(path) as file:
-            gid2labels: Dict[str, str] = json.load(file)
-        # noinspection PyTypeChecker
-        gid2labels: List[List[Dict[str, str]]] = list(map(_create_gid2labels_record, gid2labels.items()))
-        flat_gid2labels = [item for sublist in gid2labels for item in sublist]
-        df = pd.read_json(json.dumps(flat_gid2labels), orient='records', typ='frame', dtype=True, encoding='utf-8')
-    df = df.set_index('template', drop=False, verify_integrity=True)
-    df.index = df.index.map(str)
+    df = pd.read_json(path, orient='index', typ='frame', dtype=True, encoding='utf-8')
 
     return df
 
@@ -150,21 +100,6 @@ def read_smth_lid2gid() -> pd.DataFrame:
     lid2gid = label2gid.join(label2lid).set_index(['lid', 'gid'], drop=False, verify_integrity=True)
 
     return lid2gid
-
-
-# TODO: Is this still needed?
-def read_smth_gid2group(path: str) -> pd.DataFrame:
-    """Read in the gid2group json as a DataFrame."""
-    with open(path, 'r', encoding='utf-8') as file:
-        group_id2group_label: Dict[str, str] = json.load(file)
-    # noinspection PyTypeChecker
-    group_id2group_label: List[Dict[str, str]] = list(map(_create_gid2group_record, group_id2group_label.items()))
-
-    df = pd.read_json(json.dumps(group_id2group_label), orient='record', typ='frame', dtype=True, encoding='utf-8')
-    df = df.set_index('id', drop=False, verify_integrity=True)
-    df.index = df.index.map(int)
-
-    return df
 
 
 def notify(_type: str, title: str, text: str, fields: List[Dict[str, Any]] = None) -> int:

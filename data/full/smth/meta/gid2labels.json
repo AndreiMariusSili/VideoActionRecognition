@@ -1,293 +1,614 @@
 {
- "0": [
-  "Wiping something off of something",
-  "Pretending or failing to wipe something off of something"
- ],
- "1": [
-  "Closing something",
-  "Pretending to close something without actually closing it"
- ],
- "2": [
-  "Opening something",
-  "Pretending to open something without actually opening it"
- ],
- "3": [
-  "Picking something up",
-  "Pretending to pick something up"
- ],
- "4": [
-  "Turning something upside down",
-  "Pretending to turn something upside down"
- ],
- "5": [
-  "Putting something into something",
-  "Pretending to put something into something"
- ],
- "6": [
-  "Putting something behind something",
-  "Pretending to put something behind something"
- ],
- "7": [
-  "Putting something next to something",
-  "Pretending to put something next to something"
- ],
- "8": [
-  "Putting something on a surface",
-  "Pretending to put something on a surface"
- ],
- "9": [
-  "Putting something onto something",
-  "Pretending to put something onto something"
- ],
- "10": [
-  "Putting something underneath something",
-  "Pretending to put something underneath something"
- ],
- "11": [
-  "Scooping something up with something",
-  "Pretending to scoop something up with something"
- ],
- "12": [
-  "Throwing something",
-  "Pretending to throw something"
- ],
- "13": [
-  "Taking something out of something",
-  "Pretending to take something out of something"
- ],
- "14": [
-  "Spreading something onto something",
-  "Pretending to spread air onto something"
- ],
- "15": [
-  "Sprinkling something onto something",
-  "Pretending to sprinkle air onto something"
- ],
- "16": [
-  "Pouring something out of something",
-  "Pretending to pour something out of something, but something is empty"
- ],
- "17": [
-  "Taking something from somewhere",
-  "Pretending to take something from somewhere"
- ],
- "18": [
-  "Twisting (wringing) something wet until water comes out",
-  "Twisting something"
- ],
- "19": [
-  "Tearing something into two pieces",
-  "Tearing something just a little bit"
- ],
- "20": [
-  "Opening something",
-  "Closing something"
- ],
- "21": [
-  "Poking a stack of something so the stack collapses",
-  "Poking a stack of something without the stack collapsing"
- ],
- "22": [
-  "Attaching something to something",
-  "Trying but failing to attach something to something because it doesn't stick"
- ],
- "23": [
-  "Folding something",
-  "Unfolding something"
- ],
- "24": [
-  "Moving something across a surface until it falls down",
-  "Pushing something so that it falls off the table",
-  "Moving something across a surface without it falling down",
-  "Pushing something so that it almost falls off but doesn't"
- ],
- "25": [
-  "Covering something with something",
-  "Uncovering something"
- ],
- "26": [
-  "Throwing something in the air and catching it",
-  "Throwing something in the air and letting it fall"
- ],
- "27": [
-  "Lifting up one end of something without letting it drop down",
-  "Lifting up one end of something, then letting it drop down"
- ],
- "28": [
-  "Lifting something up completely without letting it drop down",
-  "Lifting something up completely, then letting it drop down"
- ],
- "29": [
-  "Lifting a surface with something on it but not enough for it to slide down",
-  "Lifting a surface with something on it until it starts sliding down"
- ],
- "30": [
-  "Pulling two ends of something so that it gets stretched",
-  "Pulling two ends of something so that it separates into two pieces"
- ],
- "31": [
-  "Moving something and something so they collide with each other",
-  "Moving something and something so they pass each other"
- ],
- "32": [
-  "Something falling like a feather or paper",
-  "Something falling like a rock"
- ],
- "33": [
-  "Spinning something so it continues spinning",
-  "Spinning something that quickly stops spinning"
- ],
- "34": [
-  "Putting something that can't roll onto a slanted surface, so it slides down",
-  "Putting something that can't roll onto a slanted surface, so it stays where it is"
- ],
- "35": [
-  "Something colliding with something and both are being deflected",
-  "Something colliding with something and both come to a halt"
- ],
- "36": [
-  "Plugging something into something",
-  "Plugging something into something but pulling it right out as you remove your hand"
- ],
- "37": [
-  "Tilting something with something on it slightly so it doesn't fall down",
-  "Tilting something with something on it until it falls off"
- ],
- "38": [
-  "Burying something in something",
-  "Digging something out of something"
- ],
- "39": [
-  "Poking a hole into some substance",
-  "Poking a hole into something soft"
- ],
- "40": [
-  "Poking something so it slightly moves",
-  "Poking something so lightly that it doesn't or almost doesn't move",
-  "Poking something so that it falls over",
-  "Poking something so that it spins around"
- ],
- "41": [
-  "Pouring something into something",
-  "Trying to pour something into something, but missing so it spills next to it"
- ],
- "42": [
-  "Pouring something into something",
-  "Pouring something into something until it overflows",
-  "Pouring something onto something"
- ],
- "43": [
-  "Burying something in something",
-  "Covering something with something"
- ],
- "44": [
-  "Covering something with something",
-  "Digging something out of something"
- ],
- "45": [
-  "Bending something so that it deforms",
-  "Bending something until it breaks"
- ],
- "46": [
-  "Dropping something behind something",
-  "Dropping something in front of something"
- ],
- "47": [
-  "Dropping something into something",
-  "Dropping something onto something"
- ],
- "48": [
-  "Dropping something behind something",
-  "Putting something behind something"
- ],
- "49": [
-  "Dropping something in front of something",
-  "Putting something in front of something"
- ],
- "50": [
-  "Dropping something into something",
-  "Putting something into something"
- ],
- "51": [
-  "Dropping something next to something",
-  "Putting something next to something"
- ],
- "52": [
-  "Dropping something onto something",
-  "Putting something onto something"
- ],
- "53": [
-  "Picking something up",
-  "Putting something on a surface"
- ],
- "54": [
-  "Failing to put something into something because something does not fit",
-  "Putting something into something"
- ],
- "55": [
-  "Scooping something up with something",
-  "Picking something up"
- ],
- "56": [
-  "Tipping something over",
-  "Touching (without moving) part of something"
- ],
- "57": [
-  "Tipping something over",
-  "Tipping something with something in it over, so something in it falls out"
- ],
- "58": [
-  "Tipping something with something in it over, so something in it falls out",
-  "Touching (without moving) part of something"
- ],
- "59": [
-  "Putting something behind something",
-  "Putting something in front of something",
-  "Putting something underneath something",
-  "Putting something next to something",
-  "Putting something onto something",
-  "Putting something into something"
- ],
- "60": [
-  "Putting something similar to other things that are already on the table",
-  "Taking one of many similar things on the table"
- ],
- "61": [
-  "Putting something into something",
-  "Taking something out of something"
- ],
- "62": [
-  "Putting something on a surface",
-  "Putting something on the edge of something so it is not supported and falls down"
- ],
- "63": [
-  "Laying something on the table on its side, not upright",
-  "Putting something that cannot actually stand upright upright on the table, so it falls on its side",
-  "Putting something upright on the table"
- ],
- "64": [
-  "Pretending to put something behind something",
-  "Pretending to put something next to something",
-  "Pretending to put something underneath something",
-  "Pretending to put something into something",
-  "Pretending to put something onto something"
- ],
- "65": [
-  "Putting something on a flat surface without letting it roll",
-  "Rolling something on a flat surface"
- ],
- "66": [
-  "Spilling something behind something",
-  "Spilling something next to something",
-  "Spilling something onto something"
- ],
- "67": [
-  "Letting something roll along a flat surface",
-  "Rolling something on a flat surface",
-  "Putting something on a flat surface without letting it roll"
- ],
- "68": [
-  "Putting something onto a slanted surface but it doesn't glide down",
-  "Letting something roll down a slanted surface"
- ]
+  "[0,0]": {
+    "id": 0,
+    "template": "Wiping something off of something"
+  },
+  "[0,1]": {
+    "id": 0,
+    "template": "Pretending or failing to wipe something off of something"
+  },
+  "[1,2]": {
+    "id": 1,
+    "template": "Closing something"
+  },
+  "[1,3]": {
+    "id": 1,
+    "template": "Pretending to close something without actually closing it"
+  },
+  "[2,4]": {
+    "id": 2,
+    "template": "Opening something"
+  },
+  "[2,5]": {
+    "id": 2,
+    "template": "Pretending to open something without actually opening it"
+  },
+  "[3,6]": {
+    "id": 3,
+    "template": "Picking something up"
+  },
+  "[3,7]": {
+    "id": 3,
+    "template": "Pretending to pick something up"
+  },
+  "[4,8]": {
+    "id": 4,
+    "template": "Turning something upside down"
+  },
+  "[4,9]": {
+    "id": 4,
+    "template": "Pretending to turn something upside down"
+  },
+  "[5,10]": {
+    "id": 5,
+    "template": "Putting something into something"
+  },
+  "[5,11]": {
+    "id": 5,
+    "template": "Pretending to put something into something"
+  },
+  "[6,12]": {
+    "id": 6,
+    "template": "Putting something behind something"
+  },
+  "[6,13]": {
+    "id": 6,
+    "template": "Pretending to put something behind something"
+  },
+  "[7,14]": {
+    "id": 7,
+    "template": "Putting something next to something"
+  },
+  "[7,15]": {
+    "id": 7,
+    "template": "Pretending to put something next to something"
+  },
+  "[8,16]": {
+    "id": 8,
+    "template": "Putting something on a surface"
+  },
+  "[8,17]": {
+    "id": 8,
+    "template": "Pretending to put something on a surface"
+  },
+  "[9,18]": {
+    "id": 9,
+    "template": "Putting something onto something"
+  },
+  "[9,19]": {
+    "id": 9,
+    "template": "Pretending to put something onto something"
+  },
+  "[10,20]": {
+    "id": 10,
+    "template": "Putting something underneath something"
+  },
+  "[10,21]": {
+    "id": 10,
+    "template": "Pretending to put something underneath something"
+  },
+  "[11,22]": {
+    "id": 11,
+    "template": "Scooping something up with something"
+  },
+  "[11,23]": {
+    "id": 11,
+    "template": "Pretending to scoop something up with something"
+  },
+  "[12,24]": {
+    "id": 12,
+    "template": "Throwing something"
+  },
+  "[12,25]": {
+    "id": 12,
+    "template": "Pretending to throw something"
+  },
+  "[13,26]": {
+    "id": 13,
+    "template": "Taking something out of something"
+  },
+  "[13,27]": {
+    "id": 13,
+    "template": "Pretending to take something out of something"
+  },
+  "[14,28]": {
+    "id": 14,
+    "template": "Spreading something onto something"
+  },
+  "[14,29]": {
+    "id": 14,
+    "template": "Pretending to spread air onto something"
+  },
+  "[15,30]": {
+    "id": 15,
+    "template": "Sprinkling something onto something"
+  },
+  "[15,31]": {
+    "id": 15,
+    "template": "Pretending to sprinkle air onto something"
+  },
+  "[16,32]": {
+    "id": 16,
+    "template": "Pouring something out of something"
+  },
+  "[16,33]": {
+    "id": 16,
+    "template": "Pretending to pour something out of something, but something is empty"
+  },
+  "[17,34]": {
+    "id": 17,
+    "template": "Taking something from somewhere"
+  },
+  "[17,35]": {
+    "id": 17,
+    "template": "Pretending to take something from somewhere"
+  },
+  "[18,36]": {
+    "id": 18,
+    "template": "Twisting (wringing) something wet until water comes out"
+  },
+  "[18,37]": {
+    "id": 18,
+    "template": "Twisting something"
+  },
+  "[19,38]": {
+    "id": 19,
+    "template": "Tearing something into two pieces"
+  },
+  "[19,39]": {
+    "id": 19,
+    "template": "Tearing something just a little bit"
+  },
+  "[20,40]": {
+    "id": 20,
+    "template": "Opening something"
+  },
+  "[20,41]": {
+    "id": 20,
+    "template": "Closing something"
+  },
+  "[21,42]": {
+    "id": 21,
+    "template": "Poking a stack of something so the stack collapses"
+  },
+  "[21,43]": {
+    "id": 21,
+    "template": "Poking a stack of something without the stack collapsing"
+  },
+  "[22,44]": {
+    "id": 22,
+    "template": "Attaching something to something"
+  },
+  "[22,45]": {
+    "id": 22,
+    "template": "Trying but failing to attach something to something because it doesn't stick"
+  },
+  "[23,46]": {
+    "id": 23,
+    "template": "Folding something"
+  },
+  "[23,47]": {
+    "id": 23,
+    "template": "Unfolding something"
+  },
+  "[24,48]": {
+    "id": 24,
+    "template": "Moving something across a surface until it falls down"
+  },
+  "[24,49]": {
+    "id": 24,
+    "template": "Pushing something so that it falls off the table"
+  },
+  "[24,50]": {
+    "id": 24,
+    "template": "Moving something across a surface without it falling down"
+  },
+  "[24,51]": {
+    "id": 24,
+    "template": "Pushing something so that it almost falls off but doesn't"
+  },
+  "[25,52]": {
+    "id": 25,
+    "template": "Covering something with something"
+  },
+  "[25,53]": {
+    "id": 25,
+    "template": "Uncovering something"
+  },
+  "[26,54]": {
+    "id": 26,
+    "template": "Throwing something in the air and catching it"
+  },
+  "[26,55]": {
+    "id": 26,
+    "template": "Throwing something in the air and letting it fall"
+  },
+  "[27,56]": {
+    "id": 27,
+    "template": "Lifting up one end of something without letting it drop down"
+  },
+  "[27,57]": {
+    "id": 27,
+    "template": "Lifting up one end of something, then letting it drop down"
+  },
+  "[28,58]": {
+    "id": 28,
+    "template": "Lifting something up completely without letting it drop down"
+  },
+  "[28,59]": {
+    "id": 28,
+    "template": "Lifting something up completely, then letting it drop down"
+  },
+  "[29,60]": {
+    "id": 29,
+    "template": "Lifting a surface with something on it but not enough for it to slide down"
+  },
+  "[29,61]": {
+    "id": 29,
+    "template": "Lifting a surface with something on it until it starts sliding down"
+  },
+  "[30,62]": {
+    "id": 30,
+    "template": "Pulling two ends of something so that it gets stretched"
+  },
+  "[30,63]": {
+    "id": 30,
+    "template": "Pulling two ends of something so that it separates into two pieces"
+  },
+  "[31,64]": {
+    "id": 31,
+    "template": "Moving something and something so they collide with each other"
+  },
+  "[31,65]": {
+    "id": 31,
+    "template": "Moving something and something so they pass each other"
+  },
+  "[32,66]": {
+    "id": 32,
+    "template": "Something falling like a feather or paper"
+  },
+  "[32,67]": {
+    "id": 32,
+    "template": "Something falling like a rock"
+  },
+  "[33,68]": {
+    "id": 33,
+    "template": "Spinning something so it continues spinning"
+  },
+  "[33,69]": {
+    "id": 33,
+    "template": "Spinning something that quickly stops spinning"
+  },
+  "[34,70]": {
+    "id": 34,
+    "template": "Putting something that can't roll onto a slanted surface, so it slides down"
+  },
+  "[34,71]": {
+    "id": 34,
+    "template": "Putting something that can't roll onto a slanted surface, so it stays where it is"
+  },
+  "[35,72]": {
+    "id": 35,
+    "template": "Something colliding with something and both are being deflected"
+  },
+  "[35,73]": {
+    "id": 35,
+    "template": "Something colliding with something and both come to a halt"
+  },
+  "[36,74]": {
+    "id": 36,
+    "template": "Plugging something into something"
+  },
+  "[36,75]": {
+    "id": 36,
+    "template": "Plugging something into something but pulling it right out as you remove your hand"
+  },
+  "[37,76]": {
+    "id": 37,
+    "template": "Tilting something with something on it slightly so it doesn't fall down"
+  },
+  "[37,77]": {
+    "id": 37,
+    "template": "Tilting something with something on it until it falls off"
+  },
+  "[38,78]": {
+    "id": 38,
+    "template": "Burying something in something"
+  },
+  "[38,79]": {
+    "id": 38,
+    "template": "Digging something out of something"
+  },
+  "[39,80]": {
+    "id": 39,
+    "template": "Poking a hole into some substance"
+  },
+  "[39,81]": {
+    "id": 39,
+    "template": "Poking a hole into something soft"
+  },
+  "[40,82]": {
+    "id": 40,
+    "template": "Poking something so it slightly moves"
+  },
+  "[40,83]": {
+    "id": 40,
+    "template": "Poking something so lightly that it doesn't or almost doesn't move"
+  },
+  "[40,84]": {
+    "id": 40,
+    "template": "Poking something so that it falls over"
+  },
+  "[40,85]": {
+    "id": 40,
+    "template": "Poking something so that it spins around"
+  },
+  "[41,86]": {
+    "id": 41,
+    "template": "Pouring something into something"
+  },
+  "[41,87]": {
+    "id": 41,
+    "template": "Trying to pour something into something, but missing so it spills next to it"
+  },
+  "[42,88]": {
+    "id": 42,
+    "template": "Pouring something into something"
+  },
+  "[42,89]": {
+    "id": 42,
+    "template": "Pouring something into something until it overflows"
+  },
+  "[42,90]": {
+    "id": 42,
+    "template": "Pouring something onto something"
+  },
+  "[43,91]": {
+    "id": 43,
+    "template": "Burying something in something"
+  },
+  "[43,92]": {
+    "id": 43,
+    "template": "Covering something with something"
+  },
+  "[44,93]": {
+    "id": 44,
+    "template": "Covering something with something"
+  },
+  "[44,94]": {
+    "id": 44,
+    "template": "Digging something out of something"
+  },
+  "[45,95]": {
+    "id": 45,
+    "template": "Bending something so that it deforms"
+  },
+  "[45,96]": {
+    "id": 45,
+    "template": "Bending something until it breaks"
+  },
+  "[46,97]": {
+    "id": 46,
+    "template": "Dropping something behind something"
+  },
+  "[46,98]": {
+    "id": 46,
+    "template": "Dropping something in front of something"
+  },
+  "[47,99]": {
+    "id": 47,
+    "template": "Dropping something into something"
+  },
+  "[47,100]": {
+    "id": 47,
+    "template": "Dropping something onto something"
+  },
+  "[48,101]": {
+    "id": 48,
+    "template": "Dropping something behind something"
+  },
+  "[48,102]": {
+    "id": 48,
+    "template": "Putting something behind something"
+  },
+  "[49,103]": {
+    "id": 49,
+    "template": "Dropping something in front of something"
+  },
+  "[49,104]": {
+    "id": 49,
+    "template": "Putting something in front of something"
+  },
+  "[50,105]": {
+    "id": 50,
+    "template": "Dropping something into something"
+  },
+  "[50,106]": {
+    "id": 50,
+    "template": "Putting something into something"
+  },
+  "[51,107]": {
+    "id": 51,
+    "template": "Dropping something next to something"
+  },
+  "[51,108]": {
+    "id": 51,
+    "template": "Putting something next to something"
+  },
+  "[52,109]": {
+    "id": 52,
+    "template": "Dropping something onto something"
+  },
+  "[52,110]": {
+    "id": 52,
+    "template": "Putting something onto something"
+  },
+  "[53,111]": {
+    "id": 53,
+    "template": "Picking something up"
+  },
+  "[53,112]": {
+    "id": 53,
+    "template": "Putting something on a surface"
+  },
+  "[54,113]": {
+    "id": 54,
+    "template": "Failing to put something into something because something does not fit"
+  },
+  "[54,114]": {
+    "id": 54,
+    "template": "Putting something into something"
+  },
+  "[55,115]": {
+    "id": 55,
+    "template": "Scooping something up with something"
+  },
+  "[55,116]": {
+    "id": 55,
+    "template": "Picking something up"
+  },
+  "[56,117]": {
+    "id": 56,
+    "template": "Tipping something over"
+  },
+  "[56,118]": {
+    "id": 56,
+    "template": "Touching (without moving) part of something"
+  },
+  "[57,119]": {
+    "id": 57,
+    "template": "Tipping something over"
+  },
+  "[57,120]": {
+    "id": 57,
+    "template": "Tipping something with something in it over, so something in it falls out"
+  },
+  "[58,121]": {
+    "id": 58,
+    "template": "Tipping something with something in it over, so something in it falls out"
+  },
+  "[58,122]": {
+    "id": 58,
+    "template": "Touching (without moving) part of something"
+  },
+  "[59,123]": {
+    "id": 59,
+    "template": "Putting something behind something"
+  },
+  "[59,124]": {
+    "id": 59,
+    "template": "Putting something in front of something"
+  },
+  "[59,125]": {
+    "id": 59,
+    "template": "Putting something underneath something"
+  },
+  "[59,126]": {
+    "id": 59,
+    "template": "Putting something next to something"
+  },
+  "[59,127]": {
+    "id": 59,
+    "template": "Putting something onto something"
+  },
+  "[59,128]": {
+    "id": 59,
+    "template": "Putting something into something"
+  },
+  "[60,129]": {
+    "id": 60,
+    "template": "Putting something similar to other things that are already on the table"
+  },
+  "[60,130]": {
+    "id": 60,
+    "template": "Taking one of many similar things on the table"
+  },
+  "[61,131]": {
+    "id": 61,
+    "template": "Putting something into something"
+  },
+  "[61,132]": {
+    "id": 61,
+    "template": "Taking something out of something"
+  },
+  "[62,133]": {
+    "id": 62,
+    "template": "Putting something on a surface"
+  },
+  "[62,134]": {
+    "id": 62,
+    "template": "Putting something on the edge of something so it is not supported and falls down"
+  },
+  "[63,135]": {
+    "id": 63,
+    "template": "Laying something on the table on its side, not upright"
+  },
+  "[63,136]": {
+    "id": 63,
+    "template": "Putting something that cannot actually stand upright upright on the table, so it falls on its side"
+  },
+  "[63,137]": {
+    "id": 63,
+    "template": "Putting something upright on the table"
+  },
+  "[64,138]": {
+    "id": 64,
+    "template": "Pretending to put something behind something"
+  },
+  "[64,139]": {
+    "id": 64,
+    "template": "Pretending to put something next to something"
+  },
+  "[64,140]": {
+    "id": 64,
+    "template": "Pretending to put something underneath something"
+  },
+  "[64,141]": {
+    "id": 64,
+    "template": "Pretending to put something into something"
+  },
+  "[64,142]": {
+    "id": 64,
+    "template": "Pretending to put something onto something"
+  },
+  "[65,143]": {
+    "id": 65,
+    "template": "Putting something on a flat surface without letting it roll"
+  },
+  "[65,144]": {
+    "id": 65,
+    "template": "Rolling something on a flat surface"
+  },
+  "[66,145]": {
+    "id": 66,
+    "template": "Spilling something behind something"
+  },
+  "[66,146]": {
+    "id": 66,
+    "template": "Spilling something next to something"
+  },
+  "[66,147]": {
+    "id": 66,
+    "template": "Spilling something onto something"
+  },
+  "[67,148]": {
+    "id": 67,
+    "template": "Letting something roll along a flat surface"
+  },
+  "[67,149]": {
+    "id": 67,
+    "template": "Rolling something on a flat surface"
+  },
+  "[67,150]": {
+    "id": 67,
+    "template": "Putting something on a flat surface without letting it roll"
+  },
+  "[68,151]": {
+    "id": 68,
+    "template": "Putting something onto a slanted surface but it doesn't glide down"
+  },
+  "[68,152]": {
+    "id": 68,
+    "template": "Letting something roll down a slanted surface"
+  }
 }

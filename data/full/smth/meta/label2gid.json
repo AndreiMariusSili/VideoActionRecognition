@@ -1,116 +1,344 @@
 {
- "Wiping something off of something": 0,
- "Pretending or failing to wipe something off of something": 0,
- "Closing something": 20,
- "Pretending to close something without actually closing it": 1,
- "Opening something": 20,
- "Pretending to open something without actually opening it": 2,
- "Picking something up": 55,
- "Pretending to pick something up": 3,
- "Turning something upside down": 4,
- "Pretending to turn something upside down": 4,
- "Putting something into something": 61,
- "Pretending to put something into something": 64,
- "Putting something behind something": 59,
- "Pretending to put something behind something": 64,
- "Putting something next to something": 59,
- "Pretending to put something next to something": 64,
- "Putting something on a surface": 62,
- "Pretending to put something on a surface": 8,
- "Putting something onto something": 59,
- "Pretending to put something onto something": 64,
- "Putting something underneath something": 59,
- "Pretending to put something underneath something": 64,
- "Scooping something up with something": 55,
- "Pretending to scoop something up with something": 11,
- "Throwing something": 12,
- "Pretending to throw something": 12,
- "Taking something out of something": 61,
- "Pretending to take something out of something": 13,
- "Spreading something onto something": 14,
- "Pretending to spread air onto something": 14,
- "Sprinkling something onto something": 15,
- "Pretending to sprinkle air onto something": 15,
- "Pouring something out of something": 16,
- "Pretending to pour something out of something, but something is empty": 16,
- "Taking something from somewhere": 17,
- "Pretending to take something from somewhere": 17,
- "Twisting (wringing) something wet until water comes out": 18,
- "Twisting something": 18,
- "Tearing something into two pieces": 19,
- "Tearing something just a little bit": 19,
- "Poking a stack of something so the stack collapses": 21,
- "Poking a stack of something without the stack collapsing": 21,
- "Attaching something to something": 22,
- "Trying but failing to attach something to something because it doesn't stick": 22,
- "Folding something": 23,
- "Unfolding something": 23,
- "Moving something across a surface until it falls down": 24,
- "Pushing something so that it falls off the table": 24,
- "Moving something across a surface without it falling down": 24,
- "Pushing something so that it almost falls off but doesn't": 24,
- "Covering something with something": 44,
- "Uncovering something": 25,
- "Throwing something in the air and catching it": 26,
- "Throwing something in the air and letting it fall": 26,
- "Lifting up one end of something without letting it drop down": 27,
- "Lifting up one end of something, then letting it drop down": 27,
- "Lifting something up completely without letting it drop down": 28,
- "Lifting something up completely, then letting it drop down": 28,
- "Lifting a surface with something on it but not enough for it to slide down": 29,
- "Lifting a surface with something on it until it starts sliding down": 29,
- "Pulling two ends of something so that it gets stretched": 30,
- "Pulling two ends of something so that it separates into two pieces": 30,
- "Moving something and something so they collide with each other": 31,
- "Moving something and something so they pass each other": 31,
- "Something falling like a feather or paper": 32,
- "Something falling like a rock": 32,
- "Spinning something so it continues spinning": 33,
- "Spinning something that quickly stops spinning": 33,
- "Putting something that can't roll onto a slanted surface, so it slides down": 34,
- "Putting something that can't roll onto a slanted surface, so it stays where it is": 34,
- "Something colliding with something and both are being deflected": 35,
- "Something colliding with something and both come to a halt": 35,
- "Plugging something into something": 36,
- "Plugging something into something but pulling it right out as you remove your hand": 36,
- "Tilting something with something on it slightly so it doesn't fall down": 37,
- "Tilting something with something on it until it falls off": 37,
- "Burying something in something": 43,
- "Digging something out of something": 44,
- "Poking a hole into some substance": 39,
- "Poking a hole into something soft": 39,
- "Poking something so it slightly moves": 40,
- "Poking something so lightly that it doesn't or almost doesn't move": 40,
- "Poking something so that it falls over": 40,
- "Poking something so that it spins around": 40,
- "Pouring something into something": 42,
- "Trying to pour something into something, but missing so it spills next to it": 41,
- "Pouring something into something until it overflows": 42,
- "Pouring something onto something": 42,
- "Bending something so that it deforms": 45,
- "Bending something until it breaks": 45,
- "Dropping something behind something": 48,
- "Dropping something in front of something": 49,
- "Dropping something into something": 50,
- "Dropping something onto something": 52,
- "Putting something in front of something": 59,
- "Dropping something next to something": 51,
- "Failing to put something into something because something does not fit": 54,
- "Tipping something over": 57,
- "Touching (without moving) part of something": 58,
- "Tipping something with something in it over, so something in it falls out": 58,
- "Putting something similar to other things that are already on the table": 60,
- "Taking one of many similar things on the table": 60,
- "Putting something on the edge of something so it is not supported and falls down": 62,
- "Laying something on the table on its side, not upright": 63,
- "Putting something that cannot actually stand upright upright on the table, so it falls on its side": 63,
- "Putting something upright on the table": 63,
- "Putting something on a flat surface without letting it roll": 67,
- "Rolling something on a flat surface": 67,
- "Spilling something behind something": 66,
- "Spilling something next to something": 66,
- "Spilling something onto something": 66,
- "Letting something roll along a flat surface": 67,
- "Putting something onto a slanted surface but it doesn't glide down": 68,
- "Letting something roll down a slanted surface": 68
+  "Attaching something to something": {
+    "id": 22
+  },
+  "Bending something so that it deforms": {
+    "id": 45
+  },
+  "Bending something until it breaks": {
+    "id": 45
+  },
+  "Burying something in something": {
+    "id": 43
+  },
+  "Closing something": {
+    "id": 20
+  },
+  "Covering something with something": {
+    "id": 44
+  },
+  "Digging something out of something": {
+    "id": 44
+  },
+  "Dropping something behind something": {
+    "id": 48
+  },
+  "Dropping something in front of something": {
+    "id": 49
+  },
+  "Dropping something into something": {
+    "id": 50
+  },
+  "Dropping something next to something": {
+    "id": 51
+  },
+  "Dropping something onto something": {
+    "id": 52
+  },
+  "Failing to put something into something because something does not fit": {
+    "id": 54
+  },
+  "Folding something": {
+    "id": 23
+  },
+  "Laying something on the table on its side, not upright": {
+    "id": 63
+  },
+  "Letting something roll along a flat surface": {
+    "id": 67
+  },
+  "Letting something roll down a slanted surface": {
+    "id": 68
+  },
+  "Lifting a surface with something on it but not enough for it to slide down": {
+    "id": 29
+  },
+  "Lifting a surface with something on it until it starts sliding down": {
+    "id": 29
+  },
+  "Lifting something up completely without letting it drop down": {
+    "id": 28
+  },
+  "Lifting something up completely, then letting it drop down": {
+    "id": 28
+  },
+  "Lifting up one end of something without letting it drop down": {
+    "id": 27
+  },
+  "Lifting up one end of something, then letting it drop down": {
+    "id": 27
+  },
+  "Moving something across a surface until it falls down": {
+    "id": 24
+  },
+  "Moving something across a surface without it falling down": {
+    "id": 24
+  },
+  "Moving something and something so they collide with each other": {
+    "id": 31
+  },
+  "Moving something and something so they pass each other": {
+    "id": 31
+  },
+  "Opening something": {
+    "id": 20
+  },
+  "Picking something up": {
+    "id": 55
+  },
+  "Plugging something into something": {
+    "id": 36
+  },
+  "Plugging something into something but pulling it right out as you remove your hand": {
+    "id": 36
+  },
+  "Poking a hole into some substance": {
+    "id": 39
+  },
+  "Poking a hole into something soft": {
+    "id": 39
+  },
+  "Poking a stack of something so the stack collapses": {
+    "id": 21
+  },
+  "Poking a stack of something without the stack collapsing": {
+    "id": 21
+  },
+  "Poking something so it slightly moves": {
+    "id": 40
+  },
+  "Poking something so lightly that it doesn't or almost doesn't move": {
+    "id": 40
+  },
+  "Poking something so that it falls over": {
+    "id": 40
+  },
+  "Poking something so that it spins around": {
+    "id": 40
+  },
+  "Pouring something into something": {
+    "id": 42
+  },
+  "Pouring something into something until it overflows": {
+    "id": 42
+  },
+  "Pouring something onto something": {
+    "id": 42
+  },
+  "Pouring something out of something": {
+    "id": 16
+  },
+  "Pretending or failing to wipe something off of something": {
+    "id": 0
+  },
+  "Pretending to close something without actually closing it": {
+    "id": 1
+  },
+  "Pretending to open something without actually opening it": {
+    "id": 2
+  },
+  "Pretending to pick something up": {
+    "id": 3
+  },
+  "Pretending to pour something out of something, but something is empty": {
+    "id": 16
+  },
+  "Pretending to put something behind something": {
+    "id": 64
+  },
+  "Pretending to put something into something": {
+    "id": 64
+  },
+  "Pretending to put something next to something": {
+    "id": 64
+  },
+  "Pretending to put something on a surface": {
+    "id": 8
+  },
+  "Pretending to put something onto something": {
+    "id": 64
+  },
+  "Pretending to put something underneath something": {
+    "id": 64
+  },
+  "Pretending to scoop something up with something": {
+    "id": 11
+  },
+  "Pretending to spread air onto something": {
+    "id": 14
+  },
+  "Pretending to sprinkle air onto something": {
+    "id": 15
+  },
+  "Pretending to take something from somewhere": {
+    "id": 17
+  },
+  "Pretending to take something out of something": {
+    "id": 13
+  },
+  "Pretending to throw something": {
+    "id": 12
+  },
+  "Pretending to turn something upside down": {
+    "id": 4
+  },
+  "Pulling two ends of something so that it gets stretched": {
+    "id": 30
+  },
+  "Pulling two ends of something so that it separates into two pieces": {
+    "id": 30
+  },
+  "Pushing something so that it almost falls off but doesn't": {
+    "id": 24
+  },
+  "Pushing something so that it falls off the table": {
+    "id": 24
+  },
+  "Putting something behind something": {
+    "id": 59
+  },
+  "Putting something in front of something": {
+    "id": 59
+  },
+  "Putting something into something": {
+    "id": 61
+  },
+  "Putting something next to something": {
+    "id": 59
+  },
+  "Putting something on a flat surface without letting it roll": {
+    "id": 67
+  },
+  "Putting something on a surface": {
+    "id": 62
+  },
+  "Putting something on the edge of something so it is not supported and falls down": {
+    "id": 62
+  },
+  "Putting something onto a slanted surface but it doesn't glide down": {
+    "id": 68
+  },
+  "Putting something onto something": {
+    "id": 59
+  },
+  "Putting something similar to other things that are already on the table": {
+    "id": 60
+  },
+  "Putting something that can't roll onto a slanted surface, so it slides down": {
+    "id": 34
+  },
+  "Putting something that can't roll onto a slanted surface, so it stays where it is": {
+    "id": 34
+  },
+  "Putting something that cannot actually stand upright upright on the table, so it falls on its side": {
+    "id": 63
+  },
+  "Putting something underneath something": {
+    "id": 59
+  },
+  "Putting something upright on the table": {
+    "id": 63
+  },
+  "Rolling something on a flat surface": {
+    "id": 67
+  },
+  "Scooping something up with something": {
+    "id": 55
+  },
+  "Something colliding with something and both are being deflected": {
+    "id": 35
+  },
+  "Something colliding with something and both come to a halt": {
+    "id": 35
+  },
+  "Something falling like a feather or paper": {
+    "id": 32
+  },
+  "Something falling like a rock": {
+    "id": 32
+  },
+  "Spilling something behind something": {
+    "id": 66
+  },
+  "Spilling something next to something": {
+    "id": 66
+  },
+  "Spilling something onto something": {
+    "id": 66
+  },
+  "Spinning something so it continues spinning": {
+    "id": 33
+  },
+  "Spinning something that quickly stops spinning": {
+    "id": 33
+  },
+  "Spreading something onto something": {
+    "id": 14
+  },
+  "Sprinkling something onto something": {
+    "id": 15
+  },
+  "Taking one of many similar things on the table": {
+    "id": 60
+  },
+  "Taking something from somewhere": {
+    "id": 17
+  },
+  "Taking something out of something": {
+    "id": 61
+  },
+  "Tearing something into two pieces": {
+    "id": 19
+  },
+  "Tearing something just a little bit": {
+    "id": 19
+  },
+  "Throwing something": {
+    "id": 12
+  },
+  "Throwing something in the air and catching it": {
+    "id": 26
+  },
+  "Throwing something in the air and letting it fall": {
+    "id": 26
+  },
+  "Tilting something with something on it slightly so it doesn't fall down": {
+    "id": 37
+  },
+  "Tilting something with something on it until it falls off": {
+    "id": 37
+  },
+  "Tipping something over": {
+    "id": 57
+  },
+  "Tipping something with something in it over, so something in it falls out": {
+    "id": 58
+  },
+  "Touching (without moving) part of something": {
+    "id": 58
+  },
+  "Trying but failing to attach something to something because it doesn't stick": {
+    "id": 22
+  },
+  "Trying to pour something into something, but missing so it spills next to it": {
+    "id": 41
+  },
+  "Turning something upside down": {
+    "id": 4
+  },
+  "Twisting (wringing) something wet until water comes out": {
+    "id": 18
+  },
+  "Twisting something": {
+    "id": 18
+  },
+  "Uncovering something": {
+    "id": 25
+  },
+  "Unfolding something": {
+    "id": 23
+  },
+  "Wiping something off of something": {
+    "id": 0
+  }
 }

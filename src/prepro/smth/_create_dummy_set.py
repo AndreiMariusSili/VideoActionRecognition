@@ -109,3 +109,4 @@ def main():
         logging.info('...Done')
     except Exception:
         hp.notify('bad', 'dummy_smth', 'Error occurred while creating dummy set.')
+        raise
