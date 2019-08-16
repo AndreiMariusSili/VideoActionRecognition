@@ -3,9 +3,12 @@
 .idea
 
 **.pyc
-**.tar
-**.webm
-**.jpeg
+
+data/*/smth/webm.tar
+data/*/smth/webm
+data/*/smth/jpeg
 
 env
 runs
+
+.ipynb_checkpoints

@@ -5,6 +5,17 @@ import helpers as hp
 from env import logging
 
 
+def _make_data_dirs():
+    """Create directories."""
+    os.makedirs(hp.change_setting(ct.SMTH_META_DIR, 'full', 'dummy').as_posix(), exist_ok=True)
+    os.makedirs(hp.change_setting(ct.SMTH_WEBM_DIR, 'full', 'dummy').as_posix(), exist_ok=True)
+    os.makedirs(hp.change_setting(ct.SMTH_JPEG_DIR, 'full', 'dummy').as_posix(), exist_ok=True)
+
+    os.makedirs(hp.change_setting(ct.SMTH_META_DIR, 'dummy', 'full').as_posix(), exist_ok=True)
+    os.makedirs(hp.change_setting(ct.SMTH_WEBM_DIR, 'dummy', 'full').as_posix(), exist_ok=True)
+    os.makedirs(hp.change_setting(ct.SMTH_JPEG_DIR, 'dummy', 'full').as_posix(), exist_ok=True)
+
+
 def _extract():
     """Extract the dataset."""
     subprocess.call(f'tar -zxf webm.tar ',
@@ -24,6 +35,8 @@ def _move_webm():
 
 
 def main():
+    logging.info('Creating data directories...')
+    _make_data_dirs()
     logging.info('Extracting webm files...')
     _extract()
     logging.info('Moving webm files...')
