@@ -1,27 +1,4 @@
 name: mt
-channels:
-  - defaults
-  - conda-forge
-  - pytorch
 dependencies:
-  - python=3.7.*
-  - pip
-  - pytorch=1.1.*
-  - torchvision
-  - ignite
-  - pandas
-  - opencv
-  - scikit-learn
-  - scikit-image
-  - scikit-video
-  - tqdm
-  - matplotlib
-  - bokeh
-  - jupyter
-  - requests
-  - seaborn
-  - tensorboardx
-  - pip:
-      - autopep8
-      - tensorboard
-      - git+https://github.com/pytorch/ignite.git
+  - python=3.7
+  - pip=19.3

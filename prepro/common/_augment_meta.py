@@ -3,10 +3,9 @@ from typing import Any, List, Tuple
 import pandas as pd
 import skvideo.io
 
-import constants as ct
-import env
 import helpers as ghp
 import prepro.helpers as php
+from env import logging
 
 DATA_ROOT_DIR = None
 
@@ -26,7 +25,7 @@ def _augment_row(row: pd.Series) -> pd.Series:
     video = skvideo.io.vread(video_path.as_posix())
     video_meta = skvideo.io.ffprobe(video_path)['video']
 
-    row['length'], row['height'], row['width'], _ = video.shape
+    row['height'], row['width'], row['length'], _ = video.shape
     row['framerate'] = int(video_meta['@avg_frame_rate'].split('/')[0])
 
     return row
@@ -49,10 +48,10 @@ def main(dataset: str, split: int):
     [train, dev, _, test] = php.get_meta_paths(dataset, split)
 
     for path in [train, dev, test]:
-        env.LOGGER.info(f'Augmenting metadata at {path.as_posix()}...')
+        logging.info(f'Augmenting metadata at {path.as_posix()}...')
         meta = ghp.read_meta(path)
         add_columns(meta)
         for index, row in ghp.parallel.execute(_augment_meta, list(meta.iterrows()), 1):
             meta.loc[index] = row
-        meta.to_json(ct.WORK_ROOT / path, orient='index')
-        env.LOGGER.info('...Done')
+        meta.to_json(path, orient='index')
+        logging.info('...Done')

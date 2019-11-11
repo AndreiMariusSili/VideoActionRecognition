@@ -6,47 +6,53 @@
 #SBATCH -t 12:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=andrei.sili1994@gmail.com
-#SBATCH -D /home/asili/master-thesis/work/out
+#SBATCH -D /home/asili/master-thesis/out
 #SBATCH -o tar.out
 
+# Setup
+export MT_ROOT="${HOME}/master-thesis"
 # shellcheck source=/dev/null
-source "${MT_SOURCE}/scripts/lisa/common/setup.sh" "normal"
+source "${HOME}/.bash_profile"
+conda activate mt
 
-echo "=================================================================================================================="
-echo "Tarring folders..."
-echo "=================================================================================================================="
 for w in "$@"; do
   if [ "${w}" == "src" ]; then
     echo "Tarring src folder..."
-    mkdir "-p" "${MT_WORK}/tar"
-    tar "--totals" "-C" "${MT_SOURCE}" "-cf" "${MT_WORK}/tar/src.tar" "."
-    echo "Done."
-  fi
-
-  if [ "${w}" == "hmdb" ]; then
-    echo "Tarring hmdb folder..."
-    mkdir "-p" "${MT_WORK}/tar/data"
-    tar "--totals" "--exclude" "./archive" "-C" "${MT_WORK}/data
-    /hmdb" "-cf" "${MT_WORK}/tar/hmdb.tar" "."
-    echo "Done."
-  fi
-
-  if [ "${w}" == "smth" ]; then
-    echo "Tarring smth folder..."
-    mkdir "-p" "${MT_WORK}/tar/data"
-    tar "--totals" "--exclude" "./archive" "-C" "${MT_WORK}/data/smth" "-cf" "${MT_WORK}/tar/smth.tar" "."
+    tar "--totals" "-C" "${MT_ROOT}/src" "-cf" "${HOME}/tar/src.tar" "."
     echo "Done."
   fi
 
   if [ "${w}" == "runs" ]; then
     echo "Tarring runs folder..."
-    mkdir "-p" "${MT_WORK}/tar"
-    tar "--totals" "-C" "${MT_WORK}/runs" "-cf" "${MT_WORK}/tar/runs.tar" "."
+    tar "--totals" "-C" "${MT_ROOT}/runs" "-cf" "${HOME}/tar/runs.tar" "."
+    echo "Done."
+  fi
+
+  if [ "${w}" == "dummy/smth" ]; then
+    echo "Tarring dummy smth folder..."
+    tar "--totals" "-C" "${MT_ROOT}/data/dummy/smth" "-cf" "${HOME}/tar/data/dummy/smth.tar" "."
+    echo "Done."
+  fi
+
+  if [ "${w}" == "dummy/hmdb" ]; then
+    echo "Tarring dummy hmdb folder..."
+    tar "--totals" "-C" "${MT_ROOT}/data/dummy/hmdb" "-cf" "${HOME}/tar/data/dummy/hmdb.tar" "."
+    echo "Done."
+  fi
+
+  if [ "${w}" == "full/smth" ]; then
+    echo "Tarring full smth folder..."
+    tar "--totals" "-C" "${MT_ROOT}/data/full/smth" "-cf" "${HOME}/tar/data/full/smth.tar" "."
+    echo "Done."
+  fi
+
+  if [ "${w}" == "full/hmdb" ]; then
+    echo "Tarring full hmdb folder..."
+    tar "--totals" "-C" "${MT_ROOT}/data/full/hmdb" "-cf" "${HOME}/tar/data/full/hmdb.tar" "."
     echo "Done."
   fi
 
 done
 
-echo "=================================================================================================================="
+# Done
 echo "Done. All good."
-echo "=================================================================================================================="

@@ -6,42 +6,40 @@
 #SBATCH -t 00:05:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=andrei.sili1994@gmail.com
-#SBATCH -D /home/asili/master-thesis/work/out
+#SBATCH -D /home/asili/master-thesis/out
 #SBATCH -o tar.out
 
+# Setup
+export MT_ROOT="${HOME}/master-thesis"
 # shellcheck source=/dev/null
-source "${MT_SOURCE}/scripts/lisa/common/setup.sh" "short"
+source "${HOME}/.bash_profile"
+conda activate mt
 
-echo "=================================================================================================================="
-echo "Tarring folders..."
-echo "=================================================================================================================="
 for w in "$@"; do
   if [ "${w}" == "src" ]; then
     echo "Tarring src folder..."
-    tar "--totals" "-C" "${MT_SOURCE}" "-cf" "${MT_WORK}tar/src.tar" "."
+    tar "--totals" "-C" "${MT_ROOT}/src" "-cf" "${HOME}/tar/src.tar" "."
     echo "Done."
   fi
 
   if [ "${w}" == "runs" ]; then
     echo "Tarring runs folder..."
-    tar "--totals" "-C" "${MT_WORK}/runs" "-cf" "${MT_WORK}/tar/runs.tar" "."
+    tar "--totals" "-C" "${MT_ROOT}/runs" "-cf" "${HOME}/tar/runs.tar" "."
     echo "Done."
   fi
 
-  if [ "${w}" == "smth" ]; then
-    echo "Tarring smth folder..."
-    tar "--totals" "--exclude" "./archive" "-C" "${MT_WORK}/data/smth" "-cf" "${MT_WORK}/tar/smth.tar" "."
+  if [ "${w}" == "dummy" ]; then
+    echo "Tarring dummy folder..."
+    tar "--totals" "-C" "${MT_ROOT}/data/dummy" "-cf" "${HOME}/tar/dummy.tar" "."
     echo "Done."
   fi
 
-  if [ "${w}" == "hmdb" ]; then
-    echo "Tarring hmdb folder..."
-    tar "--totals" "--exclude" "./archive" "-C" "${MT_WORK}/data/hmdb" "-cf" "${MT_WORK}/tar/hmdb.tar" "."
+  if [ "${w}" == "full" ]; then
+    echo "Tarring full folder..."
+    tar "--totals" "-C" "${MT_ROOT}/data/full" "-cf" "${HOME}/tar/full.tar" "."
     echo "Done."
   fi
-
 done
 
-echo "=================================================================================================================="
-echo "Ðone. All good."
-echo "=================================================================================================================="
+# Done
+echo "Done. All good."

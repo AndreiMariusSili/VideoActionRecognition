@@ -1,14 +1,6 @@
 # Created by .ignore support plugin (hsz.mobi)
 
-.idea
 
 **.pyc
-
-data/*/smth/webm.tar
-data/*/smth/webm
-data/*/smth/jpeg
-
-env
-runs
-
 .ipynb_checkpoints
+.idea

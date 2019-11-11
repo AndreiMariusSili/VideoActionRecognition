@@ -9,16 +9,20 @@ from options import model_options as mo
 
 
 class I3DClassifier(nn.Module):
+    embed_planes: int
+    dropout_prob: float
+    num_classes: int
+
     def __init__(self, embed_planes: int, dropout_prob: float, num_classes: int):
         super(I3DClassifier, self).__init__()
         self.embed_planes = embed_planes
         self.dropout_prob = dropout_prob
         self.num_classes = num_classes
 
-        self.avg_pool = nn.AdaptiveAvgPool3d([1, 1, 1])
+        self.avg_pool = nn.AdaptiveAvgPool3d((1, 1, 1))
         self.dropout = nn.Dropout3d(dropout_prob)
-        opts = mo.Unit3DOptions(in_channels=embed_planes, out_channels=self.num_classes, kernel_size=[1, 1, 1],
-                                stride=[1, 1, 1], activation='none', use_bias=False, use_bn=False, padding='SAME')
+        opts = mo.Unit3DOptions(in_channels=embed_planes, out_channels=self.num_classes, kernel_size=(1, 1, 1),
+                                stride=(1, 1, 1), activation='none', use_bias=False, use_bn=False, padding='VALID')
 
         self.classifier = ib.Unit3D(opts)
 

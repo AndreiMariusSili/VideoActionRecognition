@@ -1,25 +1,22 @@
+"""Holds specifications common across datasets."""
+import os
+
 import options.data_options as po
 
 ########################################################################################################################
-# DATA LOADER
+# DATA LOADER OPTIONS
 ########################################################################################################################
 dlo = po.DataLoaderOptions(
-    batch_size=None,
+    batch_size=128,
     shuffle=True,
-    num_workers=8,
+    num_workers=os.cpu_count(),
     pin_memory=True,
-    drop_last=False,
-    timeout=120
+    drop_last=False
 )
 ########################################################################################################################
-# SAMPLING
+# SAMPLING OPTIONS
 ########################################################################################################################
-so_4 = po.SamplingOptions(
+so = po.SamplingOptions(
     num_segments=4,
-)
-so_8 = po.SamplingOptions(
-    num_segments=8,
-)
-so_16 = po.SamplingOptions(
-    num_segments=16,
+    segment_size=1
 )

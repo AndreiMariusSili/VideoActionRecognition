@@ -1,144 +1,111 @@
-import glob
 import pathlib as pl
-import typing as t
+from glob import glob
+from typing import List, Optional, Union
 
-import cv2
-import cv2.optflow as optf  # noqa
-import imgaug.augmenters as ia
+import bokeh.models as bom
+import bokeh.plotting as bop
 import numpy as np
-import torch as th
-import torchvision.transforms.functional as F  # noqa
+from PIL import Image
+from skvideo import io
 
-import databunch.video_meta as vm
+from databunch import video_meta
 
 
 class Video(object):
-    def __init__(self, meta: vm.VideoMeta, root_path: pl.Path, read_jpeg: bool,
-                 cut: float, setting: str, num_segments: int, flow: bool, aug_seq: ia.Sequential):
+    meta: video_meta.VideoMeta
+    cut: int
+    setting: str
+    num_segments: int
+    segment_sample_size: int
+    indices: np.ndarray
+    data: Union[List[Image.Image], np.ndarray]
+
+    def __init__(self, meta: video_meta.VideoMeta, root_path: pl.Path, read_jpeg: bool, cut: float, setting: str,
+                 num_segments: Optional[int], segment_sample_size: Optional[int]):
+        """Initialize a Video object from a row in the meta DataFrame."""
         assert 0.0 <= cut <= 1.0, f'Cut should be a value between 0.0 and 1.0. Received: {cut}.'
         assert setting in ['train', 'eval'], f'Unknown setting: {setting}.'
+        assert bool(num_segments) == bool(segment_sample_size), 'Specify both number of segments and segment size.'
 
         self.meta = meta
         self.root_path = root_path
         self.read_jpeg = read_jpeg
-        self.cut = int(round(self.meta.length * cut)) - 1
+        self.cut = int(round(self.meta.length * cut))
         self.setting = setting
         self.num_segments = num_segments
-        self.flow = flow
-        self.aug_seq = aug_seq
+        self.segment_sample_size = segment_sample_size
 
-        self.flow_algo = cv2.optflow.createOptFlow_Farneback()
-        self.cut_locs = self._cut_locs()
-        self.subsample_locs = self._subsample_locs()
-        self.data = self._get_data()
-        self.data = self._do_augment()
-        self.recon = self._get_recon()
+        if self.num_segments is not None and self.num_segments > self.cut:
+            self.num_segments = self.cut
 
-    def _get_data(self):
+        self.indices = self.__get_frame_indices()
+        self.data = self.__get_frame_data()
+
+    def __get_frame_indices(self):
+        """Get a cut of the entire video."""
         if self.read_jpeg:
-            data = self._image_data()
+            path = self.root_path / self.meta.image_path
+            all_frames = np.array(sorted(glob(f'{path}/*.jpeg')))
+            cut_frames = all_frames[0:self.cut]
         else:
-            data = self._video_data()
+            all_frames = np.arange(self.meta.length, dtype=np.int)
+            cut_frames = all_frames[0:self.cut]
 
-        return data
+        if self.num_segments is not None:
+            if self.setting == 'train':
+                cut_frames = self.__random_sample_segments(cut_frames)
+            else:
+                cut_frames = self.__fixed_sample_segments(cut_frames)
 
-    def _do_augment(self):
-        det_aug_seq = self.aug_seq.to_deterministic()
+        return cut_frames
 
-        return [det_aug_seq.augment_image(frame) for frame in self.data]
+    def __random_sample_segments(self, cut_frame_indices: np.ndarray):
+        """Split the video into segments and uniformly random sample from each segment. If the segment is smaller than
+        the sample size, sample with replacement to duplicate some frames."""
+        segments = np.array_split(cut_frame_indices, self.num_segments)
+        segments = [segment for segment in segments if segment.size > 0]
+        sample = []
+        for segment in segments:
+            try:
+                sample.append(np.sort(np.random.choice(segment, self.segment_sample_size, replace=False)))
+            except ValueError:
+                sample.append(np.sort(np.random.choice(segment, self.segment_sample_size, replace=True)))
 
-    def _get_recon(self):
-        data = ia.Resize(56)(images=self.data)
-        recon = self._flow_data(data) if self.flow else data
+        return np.array(sample).reshape(-1)
 
-        return recon
+    def __fixed_sample_segments(self, cut_frame_paths: np.ndarray):
+        """Sample frames at roughly equal intervals from the video. If the video is too short, some frames will
+        be duplicated. self.cut -1 to prevent rounding leading to out of bounds index."""
+        size = self.segment_sample_size * self.num_segments
+        sample_indices = np.linspace(0, self.cut - 1, size, True).round().astype(np.int)
 
-    def _cut_locs(self) -> np.ndarray:
-        all_locs = np.arange(self.meta.length)  # disregard first and last frames, as they may be blank.
-        cut_locs = all_locs[0:self.cut]
+        return cut_frame_paths[sample_indices]
 
-        return np.array(cut_locs)
-
-    def _subsample_locs(self) -> np.ndarray:
-        if self.setting == 'train':
-            subsample_locs = self._random_subsample()
+    def __get_frame_data(self):
+        if self.read_jpeg:
+            return [Image.open(path) for path in self.indices]
         else:
-            subsample_locs = self._fixed_subsample()
+            video_path = self.root_path / self.meta.video_path
+            video = io.vread(video_path.as_posix(), num_frames=self.cut)
+            return [Image.fromarray(frame) for frame in video[self.indices]]
 
-        return subsample_locs
-
-    def _random_subsample(self) -> np.ndarray:
-        segments = [segment for segment in np.array_split(self.cut_locs, self.num_segments) if segment.size > 0]
-        segments = self._pad_with_last_segment(segments)
-        sample = [np.random.choice(segment, replace=False) for segment in segments]
-
-        return np.array(sample)
-
-    def _fixed_subsample(self) -> np.ndarray:
-        segments = [segment for segment in np.array_split(self.cut_locs, self.num_segments) if segment.size > 0]
-        segments = self._pad_with_last_segment(segments)
-        sample = [segment[len(segment) // 2] for segment in segments]
-
-        return np.array(sample)
-
-    def _pad_with_last_segment(self, segments: t.List[np.ndarray]) -> t.List[np.ndarray]:
-        segment_padding = self.num_segments - len(segments)
-
-        return segments + [segments[-1]] * segment_padding
-
-    def _image_data(self) -> t.List[np.ndarray]:
-        dir_path = glob.escape((self.root_path / self.meta.image_path).as_posix())
-        paths = np.sort(np.array(glob.glob(f'{dir_path}/*.jpeg')))
-        subsample_paths = paths[self.subsample_locs]
-        data = []
-        for path in subsample_paths:
-            data.append(cv2.cvtColor(cv2.imread(str(path)), cv2.COLOR_BGR2RGB))
-
-        return data
-
-    def _video_data(self) -> t.List[np.ndarray]:
-        cap = cv2.VideoCapture(str(self.root_path / self.meta.video_path))
-        current_frame_loc = 0
-        data = []
-        for subsample_loc in self.subsample_locs:
-            while current_frame_loc < subsample_loc:
-                current_frame_loc += 1
-                cap.grab()
-            current_frame_loc += 1
-            data.append(cv2.cvtColor(cap.read()[1], cv2.COLOR_BGR2RGB))
-        cap.release()
-
-        return data
-
-    def _flow_data(self, data: t.List[np.ndarray]) -> t.List[np.ndarray]:
-        _flow = []
-        for i in range(len(data) - 1):
-            first, second = data[i], data[i + 1]
-            first = cv2.cvtColor(first, cv2.COLOR_RGB2GRAY)
-            second = cv2.cvtColor(second, cv2.COLOR_RGB2GRAY)
-            frame_flow = np.clip(self.flow_algo.calc(first, second, None), -20, 20)
-            _flow.append(frame_flow)
-
-        return _flow
-
-    def to_tensor(self):
-        self.data = [F.to_tensor(frame) for frame in self.data]
-        self.recon = [F.to_tensor(flow) for flow in self.recon]
-
-    def to_numpy(self):
-        if isinstance(self.data, list):
-            for i in range(len(self.data)):
-                if isinstance(self.data[i], th.Tensor):
-                    self.data[i] = self.data[i].cpu().numpy()
-        if isinstance(self.recon, list):
-            for i in range(len(self.recon)):
-                if isinstance(self.recon[i], th.Tensor):
-                    self.recon[i] = self.recon[i].cpu().numpy()  # noqa
-        self.data = np.transpose(np.stack(self.data, axis=0), axes=(0, 2, 3, 1))
-        self.recon = np.transpose(np.stack(self.recon, axis=0), axes=(0, 2, 3, 1))
+    def show(self, fig: bop.Figure, source: bom.ColumnDataSource) -> None:
+        """Compile to a Bokeh animation object."""
+        fig.image_rgba(image=self.meta.id, source=source, x=0, y=0, dw=224, dh=224)
+        fig.tools = []
+        fig.toolbar.logo = None
+        fig.toolbar_location = None
+        fig.axis.visible = False
+        fig.xgrid.grid_line_color = None
+        fig.ygrid.grid_line_color = None
+        fig.outline_line_color = None
 
     def __str__(self):
-        return f'Video {self.meta.id} ({"x".join(map(str, (len(self.data), *self.data[0].shape)))})'
+        """Representation as (id, {dimensions})"""
+        if isinstance(self.data, np.ndarray):
+            return f'Video {self.meta.id} ({"x".join(map(str, (len(self.data), *self.data[0].shape)))})'
+        else:
+            return f'Video {self.meta.id} ({"x".join(map(str, (len(self.data), *self.data[0].size)))})'
 
     def __repr__(self):
         return self.__str__()

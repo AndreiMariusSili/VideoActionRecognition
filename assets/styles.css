@@ -1,0 +1,10 @@
+/*noinspection ALL*/
+.no-margin {
+    margin: 0 !important;
+}
+
+/*noinspection ALL*/
+.scroll {
+    overflow-y: hidden !important;
+    overflow-x: scroll !important
+}
