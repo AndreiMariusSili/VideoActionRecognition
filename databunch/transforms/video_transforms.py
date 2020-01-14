@@ -5,6 +5,7 @@ from typing import Callable, List, Tuple, Union
 import numpy as np
 import torch as th
 import torchvision
+import torchvision.transforms.functional as func
 from PIL import Image
 
 from databunch.transforms import functional as func
@@ -41,7 +42,7 @@ class VideoCompose(VideoTransform):
 
 
 class RandomHorizontalFlip(VideoTransform):
-    """Horizontally flip the list of given images randomly with a probability 0.5"""
+    """Horizontally flip the list of given frames randomly with a probability 0.5"""
 
     def __call__(self, video: List[Image.Image]) -> List[Image.Image]:
         if random.random() < 0.5:
@@ -84,7 +85,7 @@ class Resize(VideoTransform):
 
 
 class RandomCrop(VideoTransform):
-    """Extract random crop at the same location for a list of images."""
+    """Extract random crop at the same location for a list of frames."""
 
     def __init__(self, size):
         if isinstance(size, int):
@@ -110,7 +111,7 @@ class RandomCrop(VideoTransform):
 
 
 class CenterCrop(VideoTransform):
-    """Extract center crop at the same location for a list of images."""
+    """Extract center crop at the same location for a list of frames."""
     size: Tuple[int, int]
 
     def __init__(self, size):
@@ -215,13 +216,13 @@ class ColorJitter(VideoTransform):
     def __create_color_jitter_transform(self, brightness, contrast, saturation, hue) -> List[Callable]:
         img_transforms = []
         if brightness is not None:
-            img_transforms.append(lambda img: torchvision.transforms.functional.adjust_brightness(img, brightness))
+            img_transforms.append(lambda img: func.adjust_brightness(img, brightness))
         if saturation is not None:
-            img_transforms.append(lambda img: torchvision.transforms.functional.adjust_saturation(img, saturation))
+            img_transforms.append(lambda img: func.adjust_saturation(img, saturation))
         if hue is not None:
-            img_transforms.append(lambda img: torchvision.transforms.functional.adjust_hue(img, hue))
+            img_transforms.append(lambda img: func.adjust_hue(img, hue))
         if contrast is not None:
-            img_transforms.append(lambda img: torchvision.transforms.functional.adjust_contrast(img, contrast))
+            img_transforms.append(lambda img: func.adjust_contrast(img, contrast))
         random.shuffle(img_transforms)
 
         return img_transforms

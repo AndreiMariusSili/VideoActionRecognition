@@ -1,2 +1,1 @@
-"""Holds run specifications."""
-from specs import datasets, evaluators, models, optimizers, trainers
+from specs import datasets, evaluators, models, trainers, maps

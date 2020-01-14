@@ -35,6 +35,7 @@ class TemporalDenseBlock(nn.Module):
         return _out
 
 
+# noinspection PyUnresolvedReferences
 class TemporalDenseNetEncoder(nn.Module):
     # n_channels, step, self.growth_rate, self.n_input_plane, self.drop_rate
 

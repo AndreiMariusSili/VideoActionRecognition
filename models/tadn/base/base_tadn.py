@@ -9,8 +9,10 @@ from models.tadn.base._temporal_encoder import TemporalDenseNetEncoder
 
 
 class TimeAlignedDenseNet(nn.Module):
+    NAME = 'TADN'
+
     def __init__(self, time_steps: int, temporal_in_planes: int, growth_rate: int, temporal_drop_rate: float,
-                 classifier_drop_rate: float, num_classes: int, class_embed_planes: int = None):
+                 classifier_drop_rate: float, class_embed_planes: int, num_classes: int):
         super(TimeAlignedDenseNet, self).__init__()
 
         self.time_steps = time_steps
@@ -41,26 +43,9 @@ class TimeAlignedDenseNet(nn.Module):
                 module.weight.data.fill_(1)
                 module.bias.data.zero_()
 
-    def forward(self, _in: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
-        _spatial_out = self.spatial_encoder(_in)
-        _temporal_out = self.temporal_encoder(_spatial_out)
-        _pred, _embed = self.classifier(_temporal_out)
+    def forward(self, _in: th.Tensor) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
+        _spatial_embeds = self.spatial_encoder(_in)
+        _temporal_embeds = self.temporal_encoder(_spatial_embeds)
+        _pred, _class_embed = self.classifier(_temporal_embeds)
 
-        return _pred, _embed
-
-
-if __name__ == "__main__":
-    import os
-
-    os.chdir(f'{os.getenv("MT_ROOT")}/src')
-    import helpers as hp
-
-    _input_var = th.randn(2, 4, 3, 224, 224)
-    model = TimeAlignedDenseNet(4, 256, 64, 0.5, 0.5, 30, 512)
-    print(model)
-    output, embeds = model(_input_var)
-    print(output.shape, embeds.shape)
-    print(f'{hp.count_parameters(model):,}')
-    print(f'{hp.count_parameters(model.spatial_encoder):,}')
-    print(f'{hp.count_parameters(model.temporal_encoder):,}')
-    print(f'{hp.count_parameters(model.classifier):,}')
+        return _pred, _temporal_embeds, _class_embed

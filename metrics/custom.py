@@ -48,14 +48,13 @@ class VAELoss(im.Metric):
         self.num_examples = 0
 
     def prepare(self, output: Tuple[th.Tensor, ...]) -> Tuple[th.Tensor, ...]:
-        _recon, _pred, _latent, _mean, _log_var, _in, _target, _ = output
-        _pred = _pred.mean(dim=1)
+        _recon, _pred, _temporal_latents, _class_latent, _mean, _var, _in, _target, _ = output
 
-        return _recon, _pred, _latent, _mean, _log_var, _in, _target
+        return _recon, _pred, _temporal_latents, _class_latent, _mean, _var, _in, _target
 
     def update(self, output):
-        _recon, _pred, _latent, _mean, _log_var, _input, _target, = self.prepare(output)
-        ce, mse, kld = self.loss_fn(_recon, _pred, _input, _target, _mean, _log_var)
+        _recon, _pred, _temporal_latents, _class_latent, _mean, _var, _in, _target = self.prepare(output)
+        ce, mse, kld = self.loss_fn(_recon, _pred, _in, _target, _mean, _var)
 
         n = _pred.shape[0]
 
@@ -86,7 +85,7 @@ class AELoss(im.Metric):
         self.num_examples = 0
 
     def update(self, output):
-        _recon, _pred, _embed, _in, _target, = output
+        _recon, _pred, _temporal_embeds, _class_embed, _in, _target = output
         ce, mse = self.loss_fn(_recon, _pred, _in, _target)
 
         n = _pred.shape[0]

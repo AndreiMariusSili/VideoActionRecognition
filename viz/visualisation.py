@@ -586,8 +586,7 @@ class Visualisation(object):
             self.step += 1
             self.source.data = {video.meta.id: [video.data[self.step % video.meta.length]] for video in self.videos}
 
-    def __create_table_source(self, data: Dict[str, Any], name: str = '') -> Tuple[
-        bom.ColumnDataSource, List[bom.TableColumn]]:
+    def __create_table_source(self, data: Dict[str, Any], name: str = '') -> (bom.ColumnDataSource, [bom.TableColumn]):
         """Create a table with 2 columns: Option, Value."""
         source = dict(opt=[], val=[])
         cols = [bom.TableColumn(field='opt', title=f'{name} Option'), bom.TableColumn(field='val', title='Value')]

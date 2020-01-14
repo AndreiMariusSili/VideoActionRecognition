@@ -7,22 +7,24 @@ from models.i3d.vae._classifier import I3DClassifier
 from models.i3d.vae._decoder import I3DDecoder
 from models.i3d.vae._encoder import I3DEncoder
 
-VAE_FORWARD = tp.Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor, th.Tensor, tp.Optional[th.Tensor]]
+VAE_FORWARD = tp.Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor, th.Tensor, th.Tensor, tp.Optional[th.Tensor]]
 
 
 class VAEI3D(nn.Module):
+    NAME = 'VAEI3D'
 
-    def __init__(self, latent_planes: int, dropout_prob: float, num_classes: int, vote_type: str):
+    def __init__(self, time_steps: int, latent_planes: int, dropout_prob: float, num_classes: int, vote_type: str):
         super(VAEI3D, self).__init__()
         assert vote_type in ['soft', 'hard'], f'Unknown vote type: {vote_type}.'
 
+        self.time_steps = time_steps
         self.num_classes = num_classes
         self.dropout_prob = dropout_prob
         self.latent_planes = latent_planes
         self.vote_type = vote_type
 
         self.encoder = I3DEncoder(self.latent_planes)
-        self.decoder = I3DDecoder(self.latent_planes)
+        self.decoder = I3DDecoder(self.latent_planes, self.time_steps)
         self.classifier = I3DClassifier(self.latent_planes, self.dropout_prob, self.num_classes)
 
         self.softmax = nn.Softmax(dim=-1)
@@ -39,31 +41,31 @@ class VAEI3D(nn.Module):
                 module.weight.data.fill_(1)
                 module.bias.data.zero_()
 
-    def forward(self, _in: th.Tensor, inference: bool, num_samples: int) -> VAE_FORWARD:
-        if inference:
-            return self._inference(_in, num_samples)
-        else:
+    def forward(self, _in: th.Tensor, num_samples: int) -> VAE_FORWARD:
+        if self.training:
             return self._forward(_in, num_samples)
+        else:
+            return self._inference(_in, num_samples)
 
     def _forward(self, _in: th.Tensor, num_samples: int) -> VAE_FORWARD:
 
-        _z, _mean, _log_var = self.encoder(_in, num_samples)
-        _recon = self.decoder(_z)
-        _pred, _class_latent = self.classifier(_z)
+        temporal_latents, _mean, _var = self.encoder(_in, num_samples)
+        _recon = self.decoder(temporal_latents)
+        _pred, _class_latent = self.classifier(temporal_latents)
 
-        return _recon, _pred, _class_latent, _mean, _log_var, None
+        return _recon, _pred, temporal_latents, _class_latent, _mean, _var, None
 
     def _inference(self, _in: th.Tensor, num_samples: int) -> VAE_FORWARD:
-        _z, _mean, _var = self.encoder(_in, num_samples)
-        _recon = self.decoder(_z)
-        _pred, _class_latent = self.classifier(_z)
+        _temporal_latents, _mean, _var = self.encoder(_in, num_samples)
+        _recon = self.decoder(_temporal_latents)
+        _pred, _class_latent = self.classifier(_temporal_latents)
 
         if self.vote_type == 'hard':
             _vote = self._hard_vote(_pred)
         else:
             _vote = self._soft_vote(_pred)
 
-        return _recon, _pred, _class_latent, _mean, _var, _vote
+        return _recon, _pred, _temporal_latents, _class_latent, _mean, _var, _vote
 
     def _hard_vote(self, _preds: th.Tensor) -> th.Tensor:
         bs, num_samples, _ = _preds.shape
@@ -79,43 +81,3 @@ class VAEI3D(nn.Module):
         _votes = _preds.mean(dim=1)
 
         return _votes
-
-
-if __name__ == '__main__':
-    import models.helpers
-    import constants as ct
-
-    vae = VAEI3D(256, 0.0, 10, 'soft')
-    print(vae)
-
-    print("===INPUT===")
-    _in = th.randn((2, 4, 3, 224, 224), dtype=th.float)
-    print(_in.shape)
-
-    print("===FORWARD===")
-    x, y, z, mu, sig, _ = vae(_in, False, 1)
-    print(f'{"mean":20s}:\t{mu.shape}')
-    print(f'{"log_var":20s}:\t{sig.shape}')
-    print(f'{"latent":20s}:\t{z.shape}')
-    print(f'{"pred":20s}:\t{y.shape}')
-    print(f'{"recon":20s}:\t{x.shape}')
-
-    print("===ML INFERENCE===")
-    x, y, z, mu, sig, v = vae(_in, True, 0)
-    print(f'{"mean":20s}:\t{mu.shape}')
-    print(f'{"log_var":20s}:\t{sig.shape}')
-    print(f'{"latent":20s}:\t{z.shape}')
-    print(f'{"pred":20s}:\t{y.shape}')
-    print(f'{"vote":20s}:\t{v.shape}')
-    print(f'{"recon":20s}:\t{x.shape}')
-
-    print("===VARIATIONAL INFERENCE===")
-    x, y, z, mu, sig, v = vae(_in, True, ct.VAE_NUM_SAMPLES_DEV)
-    print(f'{"mean":20s}:\t{mu.shape}')
-    print(f'{"log_var":20s}:\t{sig.shape}')
-    print(f'{"latent":20s}:\t{z.shape}')
-    print(f'{"pred":20s}:\t{y.shape}')
-    print(f'{"vote":20s}:\t{v.shape}')
-    print(f'{"recon":20s}:\t{x.shape}')
-
-    print(f'{models.helpers.count_parameters(vae):,}')

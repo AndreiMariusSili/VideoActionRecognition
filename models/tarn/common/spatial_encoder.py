@@ -41,10 +41,11 @@ class SpatialResidualBlock(nn.Module):
 
 
 class SpatialResNetEncoder(nn.Module):
-    def __init__(self, out_planes: tp.Tuple[int, ...]):
+    def __init__(self, out_planes: tp.Tuple[int, ...], bottleneck_planes: int):
         super(SpatialResNetEncoder, self).__init__()
         self.in_planes = out_planes[0]
         self.out_planes = out_planes
+        self.bottleneck_planes = bottleneck_planes
 
         self.conv1 = nn.Conv2d(3, self.out_planes[0], kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(self.out_planes[0])
@@ -52,9 +53,14 @@ class SpatialResNetEncoder(nn.Module):
         self.max_pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
         self.layers = nn.ModuleList()
-        self.layers.append(self._make_layer(self.out_planes[1], 2))
+        self.layers.append(self._make_layer(self.out_planes[1], 2))  # noqa
         for out_plane in self.out_planes[2:]:
-            self.layers.append(self._make_layer(out_plane, 2, stride=2))
+            self.layers.append(self._make_layer(out_plane, 2, stride=2))  # noqa
+        self.bottleneck = nn.Sequential(
+            tc.conv1x1(self.in_planes, self.bottleneck_planes),
+            nn.BatchNorm2d(self.bottleneck_planes, eps=0.001),
+            nn.ReLU(inplace=True),
+        )
 
     def _make_layer(self, planes: int, blocks: int, stride: int = 1) -> nn.Module:
         downsample = None
@@ -81,8 +87,9 @@ class SpatialResNetEncoder(nn.Module):
         _out = self.relu(_out)
         _out = self.max_pool(_out)
 
-        for layer in self.layers:
+        for layer in self.layers:  # noqa
             _out = layer(_out)
+        _out = self.bottleneck(_out)
 
         _, c, h, w = _out.shape
         return _out.reshape(b, t, c, h, w)

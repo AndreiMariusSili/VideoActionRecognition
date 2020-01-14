@@ -11,57 +11,98 @@ import ignite.handlers as ih
 import torch as th
 import torch.cuda as cuda
 import torch.distributed as dist
-import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
 
 import constants as ct
 import databunch.databunch as db
+import helpers as ghp
+import logger as pl
 import options.experiment_options as eo
-import pro.logger as pl
+import specs.maps as sm
 
 
 class BaseRunner(abc.ABC):
+    class _Decorator:
+        @staticmethod
+        def sync(func):
+            def inner(self, *args, **kwargs):
+                if self.distributed:
+                    dist.barrier()
+
+                res = func(self, *args, **kwargs)
+
+                if self.distributed:
+                    dist.barrier()
+
+                return res
+
+            return inner
+
+        @staticmethod
+        def main_proc_only(func):
+            def inner(self, *args, **kwargs):
+                if not self.main_proc:
+                    return
+
+                return func(self, *args, **kwargs)
+
+            return inner
+
     def __init__(self, opts: eo.ExperimentOptions, local_rank: int):
         self.opts = opts
+        self.opts.debug = self.opts.overfit or self.opts.dev
         self.local_rank = local_rank
         self.rank, self.world_size, self.main_proc, self.distributed = self._init_distributed()
-        self.run_dir = self._init_run()
-        self.logger = pl.ExperimentLogger(self.opts, self.main_proc, self.run_dir,
-                                          self.opts.trainer.metrics, self.opts.evaluator.metrics)
+        self.opts.world_size, self.opts.distributed = self.world_size, self.distributed
+        self.opts.run_dir = self._init_run()
 
         self.device = self._init_device()
-        self.data_bunch, self.opts.model_opts.num_classes = self._init_databunch()
-        self.model = self._init_model()
+        self.data_bunch, self.opts.model.opts.num_classes = self._init_databunch()
+        self.model, self.opts.model.size = self._init_model()
         self.criterion = self._init_criterion()
         self.optimizer = self._init_optimizer()
         self.lr_scheduler = self._init_lr_scheduler()
+
+        self.logger = pl.ExperimentLogger(self.opts, self.main_proc,
+                                          self.opts.trainer.metrics, self.opts.evaluator.metrics)
         self.logger.init_log(self.data_bunch, self.model, self.criterion, self.optimizer, self.lr_scheduler)
+        self.logger.persist_run_opts()
 
         self.trainer, self.evaluator = self._init_engines()
-
         self._init_events()
-
-        self.metrics = {}
 
     def _init_distributed(self) -> typ.Tuple[int, int, bool, bool]:
         """Create distributed setup."""
         if dist.is_available() and self.local_rank != -1:
-            dist.init_process_group(backend='nccl', init_method='env://')
+            dist.init_process_group(backend='nccl')
             rank = dist.get_rank()
             world_size = dist.get_world_size()
+            assert world_size == th.cuda.device_count(), 'Invalid distributed init. World size should equal gpus.'
         else:
             rank = 0
             world_size = 1
+
         return rank, world_size, rank == 0, world_size > 1
 
+    @_Decorator.sync
     def _init_run(self) -> pth.Path:
         """Create the run directory and store the run options."""
-        run_dir = ct.RUNS_ROOT / self.opts.name
-        run_dir.mkdir(parents=True, exist_ok=True)
+        run_dir = ct.WORK_ROOT / ct.RUNS_ROOT / self.opts.name
+        if self.main_proc:
+            run_dir.mkdir(parents=True, exist_ok=True)
+            if self.opts.debug:
+                import os
+                import shutil
+                for path in os.listdir(run_dir.as_posix()):
+                    path = (run_dir / path).as_posix()
+                    if os.path.isfile(path):
+                        os.unlink(path)
+                    elif os.path.isdir(path):
+                        shutil.rmtree(path)
+        return run_dir.relative_to(ct.WORK_ROOT)
 
-        return run_dir
-
+    @_Decorator.sync
     def _init_device(self) -> typ.Any:
         if self.distributed:
             device = th.device(f'cuda:{self.rank}' if cuda.is_available() else f'cpu')
@@ -70,166 +111,206 @@ class BaseRunner(abc.ABC):
 
         return device
 
+    @_Decorator.sync
     def _init_databunch(self) -> typ.Tuple[db.VideoDataBunch, int]:
-        """Init databunch optionally for distributed setting. Calculate number of classes."""
+        """Init databunch optionally for distributed setting. Calculate number of num_classes."""
+        # flag use of distributed sampler
+        self.opts.databunch.distributed = self.distributed
 
-        # flag use of distributed sampler; set start method to prevent deadlocks.
-        self.opts.databunch_opts.distributed = self.distributed
-        if self.distributed:
-            mp.set_start_method('forkserver')
+        # add batch size from model specification.
+        self.opts.databunch.dlo.batch_size = self.opts.model.opts.batch_size
 
-        # make sure batch and workers are distributed well across worlds. -1 for the main process
-        self.opts.databunch_opts.dlo.batch_size //= self.world_size
-        self.opts.databunch_opts.dlo.num_workers //= self.world_size
-        self.opts.databunch_opts.dlo.num_workers -= 1
+        # make sure workers are distributed well across worlds.
+        self.opts.databunch.dlo.num_workers //= self.world_size
 
-        data_bunch = db.VideoDataBunch(db_opts=self.opts.databunch_opts)
+        # when running overfit, keep batch size of data taking into account world size and use only train set.
+        if self.opts.overfit:
+            self.opts.trainer.epochs = 8
+            self.opts.databunch.dlo.batch_size = 4
+            self.opts.databunch.train_dso.setting = 'eval'
+            self.opts.databunch.dev_dso.meta_path = self.opts.databunch.train_dso.meta_path
+            self.opts.databunch.test_dso.meta_path = self.opts.databunch.train_dso.meta_path
+            self.opts.databunch.train_dso.keep = self.opts.databunch.dlo.batch_size * self.world_size
+            self.opts.databunch.dev_dso.keep = self.opts.databunch.dlo.batch_size * self.world_size
+            self.opts.databunch.test_dso.keep = self.opts.databunch.dlo.batch_size * self.world_size
+
+        # when running dev, keep 2 batches, limit epochs and load data in main thread.
+        if self.opts.dev:
+            self.opts.databunch.dlo.batch_size = 2
+            self.opts.trainer.epochs = 4
+            self.opts.databunch.dlo.num_workers = 0
+
+            self.opts.databunch.train_dso.keep = self.opts.databunch.dlo.batch_size * self.world_size * 2
+            self.opts.databunch.dev_dso.keep = self.opts.databunch.dlo.batch_size * self.world_size * 2
+            self.opts.databunch.test_dso.keep = self.opts.databunch.dlo.batch_size * self.world_size * 2
+
+        data_bunch = db.VideoDataBunch(db_opts=self.opts.databunch)
 
         return data_bunch, len(data_bunch.lids)
 
-    def _init_model(self) -> nn.Module:
+    @_Decorator.sync
+    def _init_model(self) -> typ.Tuple[nn.Module, str]:
         """Initialize, resume model."""
-        opts = dc.asdict(copy.deepcopy(self.opts.model_opts))
-        model = opts.pop('arch')(**opts).to(self.device)
+        num_segments = self.opts.databunch.so.num_segments
+        segment_size = self.opts.databunch.so.segment_size
+        self.opts.model.opts.time_steps = num_segments * segment_size
+        opts = dc.asdict(copy.deepcopy(self.opts.model.opts))
+        del opts['batch_size']
+        model = sm.Models[self.opts.model.arch].value(**opts).to(self.device)
+
         if self.opts.resume:
-            latest_models = list(glob.glob((self.run_dir / 'latest_model_*.pth').as_posix()))
+            latest_models = list(glob.glob((ct.WORK_ROOT / self.opts.run_dir / 'latest_model_*.pth').as_posix()))
             if len(latest_models) > 1:
                 raise ValueError('More than one latest model available. Remove old versions.')
             model_path = latest_models.pop()
             self.logger.log(f'Loading model from {model_path}...')
             model.load_state_dict(th.load(model_path, map_location=self.device))
 
+        if self.opts.overfit:
+            for module in model.modules():
+                if isinstance(module, (nn.BatchNorm2d, nn.BatchNorm3d, nn.SyncBatchNorm)):
+                    module.momentum = 1.0
+
         if self.distributed:
             model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
             model = nn.parallel.DistributedDataParallel(model, device_ids=[self.rank], output_device=self.rank)
 
-        if self.opts.debug:
-            for module in model.modules():
-                if type(module) in [nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d]:
-                    module.track_running_stats = False
-                elif type(module) in [nn.Dropout, nn.Dropout2d, nn.Dropout3d]:
-                    module.p = 0.0
+        return model, f'{ghp.count_parameters(model):,}'
 
-        return model
-
+    @_Decorator.sync
     def _init_criterion(self):
         """Initialize loss function to correct device."""
-        criterion = self.opts.trainer.criterion(**dc.asdict(self.opts.trainer.criterion_opts))
+        criterion = sm.Criteria[self.opts.trainer.criterion].value()
 
         return criterion.to(self.device)
 
+    @_Decorator.sync
     def _init_optimizer(self) -> optim.Adam:
-        opts = dc.asdict(self.opts.trainer.optimizer)
-        optimizer = opts.pop('algorithm')(self.model.parameters(), **opts)
+        opts = dc.asdict(self.opts.trainer.optim_opts)
+        # noinspection PyUnresolvedReferences
+        optimizer = th.optim.AdamW(self.model.parameters(), **opts)
 
         if self.opts.resume:
-            optimizer_path = glob.glob((self.run_dir / 'latest_optimizer_*').as_posix()).pop()
+            optimizer_path = glob.glob((ct.WORK_ROOT / self.opts.run_dir / 'latest_optimizer_*').as_posix()).pop()
             self.logger.log(f'Loading optimizer from {optimizer_path}...')
             optimizer.load_state_dict(th.load(optimizer_path, map_location=self.device))
 
         return optimizer
 
+    @_Decorator.sync
     def _init_lr_scheduler(self):
         """Initialize a LR scheduler that reduces the LR when there was no improvement for some epochs."""
         lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer,
-                                                      milestones=ct.LR_MILESTONES,
-                                                      gamma=ct.LR_GAMMA)
+                                                      milestones=self.opts.trainer.lr_milestones,
+                                                      gamma=self.opts.trainer.lr_gamma)
 
         if self.opts.resume:
-            lr_scheduler_path = glob.glob((self.run_dir / 'latest_lr_scheduler_*').as_posix()).pop()
+            lr_scheduler_path = glob.glob((ct.WORK_ROOT / self.opts.run_dir / 'latest_lr_scheduler_*').as_posix()).pop()
             self.logger.log(f'Loading LR scheduler from {lr_scheduler_path}...')
             lr_scheduler.load_state_dict(th.load(lr_scheduler_path, map_location=self.device))
 
         return lr_scheduler
 
+    @_Decorator.sync
     @abc.abstractmethod
     def _init_engines(self) -> typ.Tuple[ie.Engine, ie.Engine]:
         """Initialize the trainer and evaluator engines."""
         raise NotImplementedError
 
+    @_Decorator.sync
     @abc.abstractmethod
     def _init_runner_specific_handlers(self):
         """Register handlers specific to runner type."""
 
+    @_Decorator.sync
     def _init_events(self) -> None:
         """Initialize the handlers of engine events. All file handling in done only in the main process. """
         self.trainer.add_event_handler(ie.Events.STARTED, self._resume_trainer_state)
         self.trainer.add_event_handler(ie.Events.EPOCH_STARTED, self._set_distributed_sampler_seed)
         self.trainer.add_event_handler(ie.Events.ITERATION_COMPLETED, self._aggregate_metrics)
-        self.logger.attach_train_pbar(self.trainer)
+        self.logger.attach_train_pbar(self.trainer)  # ON ITERATION_COMPLETED
+        self.logger.init_handlers(self.trainer, self.evaluator, self.model, self.optimizer)  # ON EPOCH_COMPLETED
         self.trainer.add_event_handler(ie.Events.EPOCH_COMPLETED, self._evaluate)
-        self.trainer.add_event_handler(ie.Events.COMPLETED, self._close_logger)
+        self.trainer.add_event_handler(ie.Events.COMPLETED, self._end_run)
         self.trainer.add_event_handler(ie.Events.EXCEPTION_RAISED, self._graceful_shutdown)
 
         self.evaluator.add_event_handler(ie.Events.ITERATION_COMPLETED, self._aggregate_metrics)
         self.evaluator.add_event_handler(ie.Events.EPOCH_COMPLETED, self.logger.log_dev_metrics)
 
-        if self.main_proc:
-            latest_ckpt_handler, best_ckpt_handler, ckpt_args = self._init_checkpoint_handlers()
+        # only main process returns checkpoint handlers
+        handlers = self._init_checkpoint_handlers()
+        if handlers is not None:
+            latest_ckpt_handler, best_ckpt_handler, ckpt_args = handlers
             self.evaluator.add_event_handler(ie.Events.COMPLETED, latest_ckpt_handler, ckpt_args)
             self.evaluator.add_event_handler(ie.Events.COMPLETED, best_ckpt_handler, ckpt_args)
+            self.evaluator.add_event_handler(ie.Events.COMPLETED, self._save_trainer_state)
 
         self.evaluator.add_event_handler(ie.Events.EXCEPTION_RAISED, self._graceful_shutdown)
-
         self._init_runner_specific_handlers()
-        self.logger.init_handlers(self.trainer, self.evaluator, self.model, self.optimizer)
 
+    @_Decorator.sync
+    @_Decorator.main_proc_only
     def _init_checkpoint_handlers(self) -> typ.Tuple[ih.ModelCheckpoint, ih.ModelCheckpoint, dict]:
         """Initialize a handler that will store the state dict of the model ,optimizer and scheduler for the best
         and latest models."""
         require_empty = not self.opts.resume
+        ckpt_dir = ct.WORK_ROOT / self.opts.run_dir / 'ckpt'
         ckpt_args = {
-            'model': self.model.module if hasattr(self.model, 'module') else self.model,
+            'model': self.model.module if hasattr(self.model, 'module') else self.model,  # noqa
             'optimizer': self.optimizer,
             'lr_scheduler': self.lr_scheduler
         }
-
-        best_ckpt = ih.ModelCheckpoint(dirname=self.run_dir.as_posix(), filename_prefix='best',
+        best_ckpt = ih.ModelCheckpoint(dirname=ckpt_dir.as_posix(), filename_prefix='best',
                                        n_saved=1, require_empty=require_empty,
                                        save_as_state_dict=True,
                                        score_function=self._negative_val_loss,
                                        score_name='loss')
-        latest_ckpt = ih.ModelCheckpoint(dirname=self.run_dir.as_posix(),
+        latest_ckpt = ih.ModelCheckpoint(dirname=ckpt_dir.as_posix(),
                                          filename_prefix='latest',
                                          n_saved=1, require_empty=require_empty,
                                          save_as_state_dict=True, save_interval=1)
         if self.opts.resume:
-            with open((self.run_dir / 'trainer_state.json').as_posix(), 'r') as file:
+            with open((ct.WORK_ROOT / self.opts.run_dir / 'ckpt' / 'trainer_state.json').as_posix(), 'r') as file:
                 state = json.load(file)
                 best_ckpt._iteration = state['epoch']
                 latest_ckpt._iteration = state['epoch']
         return latest_ckpt, best_ckpt, ckpt_args
 
-    def _resume_trainer_state(self, _engine: ie.Engine) -> None:
+    def _save_trainer_state(self, _engine: ie.Engine):
+        with open((ct.WORK_ROOT / self.opts.run_dir / 'ckpt' / 'trainer_state.').as_posix(), 'w') as file:
+            state = {
+                'iteration': _engine.state.iteration,
+                'epoch': _engine.state.epoch,
+            }
+            json.dump(state, file, indent=True)
+
+    def _resume_trainer_state(self, _: ie.Engine) -> None:
         """Event handler for start of training. Resume trainer state."""
         if self.opts.resume:
-            self.logger.log(f'Loading trainer state from {(self.run_dir / "trainer_state.json").as_posix()}')
-            with open((self.run_dir / 'trainer_state.json').as_posix(), 'r') as file:
+            self.logger.log(
+                f'Loading trainer state from {(ct.WORK_ROOT / self.opts.run_dir / "trainer_state.json").as_posix()}')
+            with open((ct.WORK_ROOT / self.opts.run_dir / 'trainer_state.json').as_posix(), 'r') as file:
                 state = json.load(file)
-                _engine.state.iteration = state['iteration']
-                _engine.state.epoch = state['epoch']
+                self.trainer.state.iteration = state['iteration']
+                self.trainer.state.epoch = state['epoch']
 
     def _set_distributed_sampler_seed(self, _engine: ie.Engine) -> None:
         """Event handler for start of epoch. Sets epoch of distributed train sampler for seeding."""
         if self.distributed:
             self.data_bunch.train_sampler.set_epoch(_engine.state.epoch)
 
+    def _end_run(self, _: ie.Engine):
+        if self.local_rank != -1 and dist.is_initialized():
+            dist.barrier()
+        self.logger.close()
+        if self.local_rank != -1 and dist.is_initialized():
+            dist.destroy_process_group()
+
     def _graceful_shutdown(self, _engine: ie.Engine, exception: Exception) -> None:
         """Event handler for raised exception. Performs cleanup. Sends slack notification."""
-        self._close_logger(_engine)
+        self._end_run(_engine)
 
         raise exception
-
-    def _close_logger(self, _: ie.Engine):
-        self.logger.close()
-
-    def _save_trainer_state(self, _engine: ie.Engine):
-        with open((self.run_dir / 'trainer_state.json').as_posix(), 'w') as file:
-            state = {
-                'iteration': _engine.state.iteration,
-                'epoch': _engine.state.epoch,
-            }
-        json.dump(state, file, indent=True)
 
     def _evaluate(self, _engine: ie.Engine) -> None:
         """Evaluate on dev set."""
@@ -251,10 +332,12 @@ class BaseRunner(abc.ABC):
 
     def _negative_val_loss(self, _: ie.Engine) -> float:
         """Return negative CE."""
-        return round(-self.evaluator.state.metrics['ce_loss'], 4)
+        return -self.evaluator.state.metrics['ce_loss']
 
     def run(self) -> None:
         """Start a run."""
+        if self.distributed:
+            dist.barrier()
         self.trainer.run(self.data_bunch.train_loader, max_epochs=self.opts.trainer.epochs)
 
     def _reduce_loss(self, loss: th.Tensor):

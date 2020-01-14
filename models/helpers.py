@@ -13,8 +13,7 @@ def _pad_top_bottom(filter_dim: int, stride_val: int) -> tp.Tuple[int, int]:
     return pad_top, pad_bottom
 
 
-def get_padding_shape(filter_shape: tp.Tuple[int, int, int], stride: tp.Tuple[int, int, int]) -> tp.Tuple[
-    int, ...]:
+def get_padding_shape(filter_shape: tp.List[int], stride: tp.List[int]) -> tp.List[int]:
     padding_shape = []
     for filter_dim, stride_val in zip(filter_shape, stride):
         pad_top, pad_bottom = _pad_top_bottom(filter_dim, stride_val)
@@ -25,10 +24,10 @@ def get_padding_shape(filter_shape: tp.Tuple[int, int, int], stride: tp.Tuple[in
     padding_shape.append(depth_top)
     padding_shape.append(depth_bottom)
 
-    return tuple(padding_shape)
+    return padding_shape
 
 
-def simplify_padding(padding_shapes: tp.Tuple[int, ...]) -> tp.Tuple[bool, int]:
+def simplify_padding(padding_shapes: tp.List[int]) -> tp.Tuple[bool, int]:
     all_same = True
     padding_init = padding_shapes[0]
     for pad in padding_shapes[1:]:
@@ -42,7 +41,7 @@ def count_parameters(model: nn.Module) -> int:
     return sum(p.numel() for p in model.parameters())
 
 
-def he_init(model):
+def he_init(model: nn.Module):
     for module in model.modules():
         if isinstance(module, nn.Conv2d):
             th.nn.init.kaiming_normal_(module.weight, mode='fan_out', nonlinearity='relu')

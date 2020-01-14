@@ -1,42 +1,30 @@
+import json
 import pathlib as pl
 import typing as tp
-from datetime import datetime
 
+import dacite as da
 import pandas as pd
-import requests
 from torch import nn
 
 import constants as ct
+import specs
+from options import experiment_options as eo, model_options as mo, data_options as do, job_options as jo
 
 
 def count_parameters(model: nn.Module) -> int:
     return sum(p.numel() for p in model.parameters())
 
 
-def change_setting(path: pl.Path, _from: str, _to: str) -> pl.Path:
-    """Switch between setting pointers for a path."""
-    settings = ['dummy', 'full']
-    assert _from in settings, f'Unknown _from: {_from}. Possible values {settings}.'
-    assert _to in settings, f'Unknown _to: {_to}. Possible values {settings}.'
-    assert _from != _to, f'Identical _from and _to.'
-
-    return pl.Path(path.as_posix().replace(f'/{_from}/', f'/{_to}/'))
-
-
 def read_meta(path: tp.Union[pl.Path, str]) -> pd.DataFrame:
     """Read in the meta json as a DataFrame."""
-    path = pl.Path(path)
+    path = ct.WORK_ROOT / pl.Path(path)
 
     return pd.read_json(path, orient='index').sort_index()
 
 
-def read_lid2gid(path: pl.Path) -> pd.DataFrame:
-    """Read the lid2gid json as a DataFrame."""
-    return pd.read_json(path, orient='index').astype({'lid': int, 'gid': int}).sort_index()
-
-
 def read_stats(path: pl.Path) -> pd.DataFrame:
     """Read in the stats json as a DataFrame."""
+    path = ct.WORK_ROOT / pl.Path(path)
     df = pd.read_json(path, orient='index', typ='frame')
 
     return df
@@ -44,10 +32,15 @@ def read_stats(path: pl.Path) -> pd.DataFrame:
 
 def read_results(path: tp.Union[pl.Path, str]) -> pd.DataFrame:
     """Read in the results json as a DataFrame."""
-    path = pl.Path(path)
+    path = ct.WORK_ROOT / pl.Path(path)
     df = pd.read_pickle(path, compression=None)
 
     return df
+
+
+def read_lid2gid(path: pl.Path) -> pd.DataFrame:
+    """Read the lid2gid json as a DataFrame."""
+    return pd.read_json(path, orient='index').astype({'lid': int, 'gid': int}).sort_index()
 
 
 def read_label2lid(path: pl.Path) -> pd.DataFrame:
@@ -96,7 +89,7 @@ def read_smth_lid2gid() -> pd.DataFrame:
     return lid2gid
 
 
-def flatten_dict(nested_dict: tp.Dict[tp.Any, tp.Any], parent_key='', sep='@'):
+def flatten_dict(nested_dict: tp.Dict[tp.Any, tp.Any], parent_key='', sep='@') -> tp.Dict[tp.Any, str]:
     """Flatten a nexted dictionary joining keys with `sep`.
 
     :param nested_dict: The nested dict.
@@ -114,37 +107,66 @@ def flatten_dict(nested_dict: tp.Dict[tp.Any, tp.Any], parent_key='', sep='@'):
     return dict(items)
 
 
-def notify(_type: str, title: str, text: str, fields: tp.List[tp.Dict[str, tp.Any]] = None) -> int:
-    """Send notification to slack channel."""
-    if _type == 'good':
-        colour = "#2E7D32"
-    elif _type == 'bad':
-        colour = "#C62828"
+def path_to_string(nested_dict: tp.Dict[tp.Any, tp.Any]):
+    """Convert all paths into string in a dictionary.
+
+    :param nested_dict: A possibly nested dictionary/
+    :return:
+    """
+    for k, v in nested_dict.items():
+        if isinstance(v, dict):
+            path_to_string(nested_dict[k])
+        elif isinstance(v, pl.Path):
+            nested_dict[k] = str(v)
+
+
+def build_spec(opts: jo.EXPERIMENT_JOB_OPTIONS) -> eo.ExperimentOptions:
+    """Build the spec from the spec name provided."""
+
+    name = _build_name(opts)
+    model: mo.MODELS = getattr(specs.models, f'{opts.model}_{opts.frames}')
+    databunch: do.DataBunch = getattr(getattr(specs.datasets, opts.dataset), f'dbo_{opts.frames}')
+
+    if opts.cut == '4q':
+        databunch.cut = 1.00
+    elif opts.cut == '3q':
+        databunch.cut = 0.75
+    elif opts.cut == '2q':
+        databunch.cut = 0.50
     else:
-        raise ValueError(f'Unknown type: ${_type}.')
+        raise ValueError(f'Unknown cut: {opts.cut}.')
 
-    payload = {
-        'attachments': [
-            {
-                'fallback': f'{title}: {text}',
-                'color': colour,
-                'title': title,
-                'text': text,
-                'footer': 'Beasty',
-                'ts': round(datetime.now().timestamp())
-            }
-        ]
-    }
-    if fields is not None:
-        # noinspection PyTypeChecker
-        payload['attachments'][0]['fields'] = fields
+    if model.type == 'class':
+        trainer = specs.trainers.class_trainer
+        evaluator = specs.evaluators.class_evaluator
+    elif model.type == 'ae':
+        trainer = specs.trainers.class_ae_trainer
+        evaluator = specs.evaluators.class_ae_evaluator
+    elif model.type == 'vae':
+        trainer = specs.trainers.class_vae_trainer
+        evaluator = specs.evaluators.class_vae_evaluator
+    else:
+        raise ValueError(f'Unknown model type: {model.type}.')
 
-    response = requests.post(
-        url=ct.SLACK_NOTIFICATION_URL,
-        json=payload,
-        headers={
-            'Content-Type': 'application/json'
-        }
+    return eo.ExperimentOptions(
+        name=name,
+        resume=opts.resume,
+        overfit=opts.overfit,
+        dev=opts.dev,
+        model=model,
+        databunch=databunch,
+        trainer=trainer,
+        evaluator=evaluator
     )
 
-    return response.status_code
+
+def load_spec(opts: jo.EXPERIMENT_JOB_OPTIONS) -> eo.ExperimentOptions:
+    name = _build_name(opts)
+    with open(str(ct.WORK_ROOT / ct.RUNS_ROOT / name / 'run.json'), 'r') as file:
+        spec = json.load(file)
+
+    return da.from_dict(data_class=eo.ExperimentOptions, data=spec, config=da.Config(cast=[pl.Path], strict=True))
+
+
+def _build_name(opts: jo.EXPERIMENT_JOB_OPTIONS) -> str:
+    return f'{opts.dataset}/{opts.cut}/{opts.frames}/{opts.model}'

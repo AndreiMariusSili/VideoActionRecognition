@@ -5,9 +5,9 @@ import pandas as pd
 import sklearn.model_selection as skm
 
 import constants as ct
+import env
 import helpers as hp
 import prepro.helpers as php
-from env import logging
 
 
 def _split_train_dev(meta_path: pl.Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -20,8 +20,8 @@ def _split_train_dev(meta_path: pl.Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
 
 def main(dataset: str, split: int):
     [train, dev, _, _] = php.get_meta_paths(dataset, split)
-    logging.info(f'Splitting {train} into train and dev...')
+    env.LOGGER.info(f'Splitting {train} into train and dev...')
     meta_train, meta_dev = _split_train_dev(train)
-    meta_train.to_json(train, orient='index')
-    meta_dev.to_json(dev, orient='index')
-    logging.info('...Done')
+    meta_train.to_json(ct.WORK_ROOT / train, orient='index')
+    meta_dev.to_json(ct.WORK_ROOT / dev, orient='index')
+    env.LOGGER.info('...Done')

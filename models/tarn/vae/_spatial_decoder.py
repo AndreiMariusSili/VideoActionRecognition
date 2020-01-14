@@ -17,23 +17,24 @@ class Standardize(nn.Module):
         return _in.sub(self.means).div(self.stds)
 
 
-class TransSpatialResidualBlock(nn.Module):
+class TransBasicBlock(nn.Module):
     expansion = 1
 
     def __init__(self, in_planes: int, out_planes: int, stride: int = 1, upsample: Optional[nn.Module] = None):
-        super(TransSpatialResidualBlock, self).__init__()
+        super(TransBasicBlock, self).__init__()
         self.conv1 = tchp.conv3x3(in_planes, in_planes)
         self.bn1 = nn.BatchNorm2d(in_planes)
         self.relu = nn.ReLU(inplace=True)
-        self.upsample = upsample
-        self.stride = stride
 
+        self.upsample = upsample
         if upsample is not None and stride != 1:
             self.conv2 = tchp.t_conv3x3(in_planes, out_planes, stride=stride, padding=1)
         else:
             self.conv2 = tchp.conv3x3(in_planes, out_planes, stride)
 
         self.bn2 = nn.BatchNorm2d(out_planes)
+        self.upsample = upsample
+        self.stride = stride
 
     def forward(self, _in: th.Tensor) -> th.Tensor:
         identity = _in
@@ -54,6 +55,8 @@ class TransSpatialResidualBlock(nn.Module):
         return _out
 
 
+# noinspection PyUnresolvedReferences
+# noinspection PyTypeChecker
 class VarSpatialResNetDecoder(nn.Module):
 
     def __init__(self, in_planes: int, out_planes: Tuple[int, ...]):
@@ -63,8 +66,9 @@ class VarSpatialResNetDecoder(nn.Module):
         self.out_planes = out_planes
 
         self.layers = nn.ModuleList()
-        for out_plane in out_planes[0:-1]:
+        for out_plane in out_planes[0:-2]:
             self.layers.append(self._make_transpose(out_plane, 2, stride=2))
+        self.layers.append(self._make_transpose(out_planes[-2], 1, stride=1))
 
         self.upsample = nn.Sequential(
             nn.Upsample(scale_factor=2),
@@ -73,28 +77,29 @@ class VarSpatialResNetDecoder(nn.Module):
             nn.ReLU(inplace=True),
         )
 
-        self.final = nn.ConvTranspose2d(self.out_planes[-1], 3, kernel_size=3, stride=1, padding=1, bias=False)
+        self.final = nn.ConvTranspose2d(self.out_planes[-1], 3, kernel_size=7, stride=2, padding=3, bias=False,
+                                        output_padding=1)
         self.sigmoid = nn.Sigmoid()
 
     def _make_transpose(self, out_planes: int, blocks: int, stride: int = 1) -> nn.Module:
         upsample = None
         if stride != 1:
             upsample = nn.Sequential(
-                tchp.t_conv3x3(self.in_planes, out_planes * TransSpatialResidualBlock.expansion, stride),
+                tchp.t_conv3x3(self.in_planes, out_planes * TransBasicBlock.expansion, stride),
                 nn.BatchNorm2d(out_planes),
             )
         elif self.in_planes != out_planes:
             upsample = nn.Sequential(
-                tchp.conv1x1(self.in_planes, out_planes * TransSpatialResidualBlock.expansion, stride),
+                tchp.conv1x1(self.in_planes, out_planes * TransBasicBlock.expansion, stride),
                 nn.BatchNorm2d(out_planes),
             )
 
-        layers = [
-            TransSpatialResidualBlock(self.in_planes, out_planes, stride, upsample)
-        ]
-        for _ in range(1, blocks):
-            layers.append(TransSpatialResidualBlock(self.in_planes, self.in_planes))
-        self.in_planes = out_planes * TransSpatialResidualBlock.expansion
+        layers = []
+        for i in range(1, blocks):
+            layers.append(TransBasicBlock(self.in_planes, self.in_planes))
+
+        layers.append(TransBasicBlock(self.in_planes, out_planes, stride, upsample))
+        self.in_planes = out_planes * TransBasicBlock.expansion
 
         return nn.Sequential(*layers)
 
@@ -107,7 +112,8 @@ class VarSpatialResNetDecoder(nn.Module):
 
         _out = self.upsample(_out)
         _out = self.final(_out)
-        _out = self.sigmoid(_out)
+        if not self.training:
+            _out = self.sigmoid(_out)
 
         _, c, h, w = _out.shape
         return _out.reshape(b, s, t, c, h, w)

@@ -28,13 +28,13 @@ class AECriterion(nn.Module):
         super(AECriterion, self).__init__()
 
         self.ce = nn.CrossEntropyLoss(reduction='mean')
-        self.mse = nn.MSELoss(reduction='mean')
+        self.bce = nn.BCEWithLogitsLoss(reduction='mean')
 
     def forward(self, _recon: th.Tensor, _pred: th.Tensor, _in: th.Tensor, _class: th.Tensor) -> AE_CRITERION_FORWARD:
         ce = self.ce(_pred, _class)
-        mse = self.mse(_recon, _in)
+        bce = self.bce(_recon, _in)
 
-        return ce, mse
+        return ce, bce
 
 
 class VAECriterion(nn.Module):
@@ -45,14 +45,22 @@ class VAECriterion(nn.Module):
 
         self.kld_factor = 0.0
 
-        self.mse = nn.MSELoss(reduction='mean')
         self.ce = nn.CrossEntropyLoss(reduction='mean')
+        self.bce = nn.BCEWithLogitsLoss(reduction='mean')
         self.kld = KLDivergence()
 
     def forward(self, _recon: th.Tensor, _pred: th.Tensor, _in: th.Tensor, _class: th.Tensor,
-                _mean: th.Tensor, _log_var: th.Tensor) -> VAE_CRITERION_FORWARD:
-        ce = self.ce(_pred, _class)
-        mse = self.mse(_recon, _in)
-        kld = self.kld(_mean, _log_var)
+                _mean: th.Tensor, _var: th.Tensor) -> VAE_CRITERION_FORWARD:
+        # repeat targets according to number of targets.
+        b, s, c = _pred.shape
+        _class = _class.reshape(b, 1).repeat(1, s).reshape(b * s)
+        _pred = _pred.reshape(b * s, c)
+        b, s, t, c, h, w = _recon.shape
+        _in = _in.reshape(b, 1, t, c, h, w).repeat(1, s, 1, 1, 1, 1).reshape(b * s, t, c, h, w)
+        _recon = _recon.reshape(b * s, t, c, h, w)
 
-        return ce, mse, kld
+        ce = self.ce(_pred, _class)
+        bce = self.bce(_recon, _in)
+        kld = self.kld(_mean, _var)
+
+        return ce, bce, kld

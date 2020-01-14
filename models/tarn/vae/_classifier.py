@@ -4,13 +4,13 @@ import torch as th
 from torch import nn
 
 
-class VariationalTimeAlignedResNetClassifier(nn.Module):
+class VarTimeAlignedResNetClassifier(nn.Module):
     in_planes: int
     num_classes: int
     drop_rate: float
 
     def __init__(self, in_planes: int, embed_planes: tp.Optional[int], drop_rate: float, num_classes: int):
-        super(VariationalTimeAlignedResNetClassifier, self).__init__()
+        super(VarTimeAlignedResNetClassifier, self).__init__()
 
         self.in_planes = in_planes
         self.embed_planes = embed_planes
@@ -40,4 +40,4 @@ class VariationalTimeAlignedResNetClassifier(nn.Module):
         _embed = self.aggregation(_in)
         _out = self.classifier(_embed)
 
-        return _out.reshape(b, s, self.num_classes), _embed.reshape(b, s, self.in_planes)
+        return _out.reshape(b, s, self.num_classes), _embed.reshape(b, s, self.embed_planes)

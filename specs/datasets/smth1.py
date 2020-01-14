@@ -1,57 +1,58 @@
 import constants as ct
-import options.data_options as po
+import options.data_options as do
 import specs.datasets.common as dc
 
 ########################################################################################################################
-# TRAIN DATASET OPTIONS
+# TRAIN DATASET
 ########################################################################################################################
-train_do = po.DataOptions(
-    root_path=ct.SMTH_ROOT_DIR,
-    read_jpeg=ct.SMTH_READ_JPEG,
+train_dso = do.DataSetOptions(
+    root_path=ct.HMDB_ROOT_DIR,
+    read_jpeg=ct.HMDB_READ_JPEG,
     meta_path=ct.SMTH_META_TRAIN_1,
     setting='train',
-)
-train_dso = po.DataSetOptions(
-    do=train_do,
-    so=dc.so
 )
 ########################################################################################################################
 # DEV DATA
 ########################################################################################################################
-dev_do = po.DataOptions(
+dev_dso = do.DataSetOptions(
     root_path=ct.SMTH_ROOT_DIR,
     read_jpeg=ct.SMTH_READ_JPEG,
-    meta_path=ct.SMTH_META_TRAIN_1,
+    meta_path=ct.SMTH_META_DEV_1,
     setting='eval',
-)
-dev_dso = po.DataSetOptions(
-    do=dev_do,
-    so=dc.so
 )
 ########################################################################################################################
 # TEST DATA
 ########################################################################################################################
-test_do = po.DataOptions(
+test_dso = do.DataSetOptions(
     root_path=ct.SMTH_ROOT_DIR,
     read_jpeg=ct.SMTH_READ_JPEG,
-    meta_path=ct.SMTH_META_TRAIN_1,
+    meta_path=ct.SMTH_META_TEST_1,
     setting='eval',
 )
-test_dso = po.DataSetOptions(
-    do=test_do,
-    so=dc.so
-)
 ########################################################################################################################
-# DATA BUNCH OPTIONS
+# DATA BUNCH
 ########################################################################################################################
-dbo = po.DataBunchOptions(
+dbo_4 = do.DataBunch(
     shape='volume',
-    cut=1.0,
-    stats_path=ct.SMTH_STATS_MERGED_1,
+    cut=None,
     frame_size=224,
+    stats_path=ct.SMTH_STATS_MERGED_1,
     distributed=False,
     dlo=dc.dlo,
+    so=dc.so_small,
     train_dso=train_dso,
     dev_dso=dev_dso,
-    test_dso=test_dso
+    test_dso=test_dso,
+)
+dbo_16 = do.DataBunch(
+    shape='volume',
+    cut=None,
+    frame_size=224,
+    stats_path=ct.SMTH_STATS_MERGED_1,
+    distributed=False,
+    dlo=dc.dlo,
+    so=dc.so_large,
+    train_dso=train_dso,
+    dev_dso=dev_dso,
+    test_dso=test_dso,
 )

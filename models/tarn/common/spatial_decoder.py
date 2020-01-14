@@ -45,6 +45,7 @@ class TransSpatialResidualBlock(nn.Module):
         return _out
 
 
+# noinspection PyUnresolvedReferences
 class SpatialResNetDecoder(nn.Module):
     def __init__(self, in_planes: int, out_planes: tp.Tuple[int, ...]):
         super(SpatialResNetDecoder, self).__init__()
@@ -67,8 +68,8 @@ class SpatialResNetDecoder(nn.Module):
         self.final = nn.Sequential(
             nn.ConvTranspose2d(self.out_planes[-1], 3, kernel_size=7, stride=2, padding=3, bias=False,
                                output_padding=1),
-            nn.Sigmoid()
         )
+        self.sigmoid = nn.Sigmoid()
 
     def _make_transpose(self, out_planes: int, blocks: int, stride: int = 1) -> nn.Module:
         upsample = None
@@ -96,11 +97,14 @@ class SpatialResNetDecoder(nn.Module):
         b, t, c, h, w = _in.shape
         _out = _in.reshape(b * t, c, h, w)
 
+        # noinspection PyTypeChecker
         for layer in self.layers:
             _out = layer(_out)
 
         _out = self.upsample(_out)
         _out = self.final(_out)
+        if not self.training:
+            _out = self.sigmoid(_out)
 
         _, c, h, w = _out.shape
         return _out.reshape(b, t, c, h, w)

@@ -28,6 +28,7 @@ class BaseEvaluator(abc.ABC):
     def __init__(self, opts: eo.ExperimentOptions, local_rank: int):
         self.opts = opts
         self.local_rank = local_rank
+        self.logger = lg.ExperimentLogger(self.opts, True, self.opts.trainer.metrics, self.opts.evaluator.metrics)
 
         self.rank, self.world_size = self._init_distributed()
         self.device = th.device(f'cuda' if cuda.is_available() else f'cpu')
@@ -35,15 +36,6 @@ class BaseEvaluator(abc.ABC):
         self.best_ckpt = self._get_best_ckpt()
         self.model = self._init_model()
         self.train_evaluator, self.dev_evaluator, self.test_evaluator = self._init_evaluators()
-
-        self.logger = lg.ExperimentLogger(
-            self.opts,
-            True,
-            self.opts.trainer.metrics,
-            self.opts.evaluator.metrics
-        )
-        self.logger.attach_pbar(self.train_evaluator)
-        self.logger.init_log()
 
     def _init_distributed(self) -> t.Tuple[int, int]:
         """Create distributed setup."""
@@ -69,7 +61,7 @@ class BaseEvaluator(abc.ABC):
         opts = dc.asdict(copy.deepcopy(self.opts.model.opts))
         del opts['batch_size']
         model = sm.Models[self.opts.model.arch].value(**opts).to(self.device)
-        print(f'Loading model from {self.best_ckpt}...')
+        self.logger.log(f'Loading model from {self.best_ckpt}...')
         model.load_state_dict(th.load(self.best_ckpt, map_location=self.device))
 
         if self.opts.overfit:
@@ -94,6 +86,7 @@ class BaseEvaluator(abc.ABC):
         self.opts.databunch.dev_dso.setting = 'eval'
         self.opts.databunch.test_dso.setting = 'eval'
         self.opts.databunch.dlo.shuffle = False
+        self.opts.databunch.dlo.batch_size *= self.opts.world_size
         self.opts.databunch.distributed = self.local_rank != -1
         data_bunch = db.VideoDataBunch(db_opts=self.opts.databunch)
 
@@ -103,7 +96,6 @@ class BaseEvaluator(abc.ABC):
         """Calculate results for a split and log."""
         assert split in ['train', 'dev', 'test'], f'Unknown split: {split}.'
         self.logger.log(f'Evaluating {split} split...')
-        (ct.WORK_ROOT / self.opts.run_dir / split).mkdir(parents=True, exist_ok=True)
 
         if split == 'train':
             loader = self.data_bunch.train_loader
@@ -116,13 +108,12 @@ class BaseEvaluator(abc.ABC):
             evaluator = self.test_evaluator
 
         metrics = self._calculate_metrics(evaluator, loader, split)
+        outs, ids = self._calculate_results(loader, split)
+        outs, tsne_ids = self._calculate_tsnes(outs, ids, split)
+
         self.logger.log_metrics(metrics)
         self.logger.persist_metrics(metrics, split)
-
-        # Not computing predictions and tsnes for now since we don't use them anywhere.
-        # outs, ids = self._calculate_results(loader, split)
-        # outs, tsne_ids = self._calculate_tsnes(outs, ids, split)
-        # self.logger.persist_outs(outs, tsne_ids, split)
+        self.logger.persist_outs(outs, tsne_ids, split)
 
         return self
 
@@ -135,15 +126,16 @@ class BaseEvaluator(abc.ABC):
 
     def _calculate_results(self, loader: tud.DataLoader, split: str) -> RESULTS:
         """Calculate extra results: predictions, embeddings, etc."""
+        (ct.WORK_ROOT / self.opts.run_dir / split).mkdir(parents=True, exist_ok=True)
         ids, targets = [], []
         outs = cl.defaultdict(list)
 
         pbar = tqdm.tqdm(total=len(loader.dataset), leave=True)
         with th.no_grad():
-            for i, (_in, _cls_gt, _recon_gt, videos) in enumerate(loader):
-                x = _in.to(device=self.device, non_blocking=True)
+            for i, (video_data, video_labels, videos, labels) in enumerate(loader):
+                x = video_data.to(device=self.device, non_blocking=True)
 
-                ids.extend([video.id for video in videos])
+                ids.extend([video.meta.id for video in videos])
 
                 batch_outs = self._get_model_outputs(x)
                 for k, v in batch_outs.items():
@@ -178,7 +170,7 @@ class BaseEvaluator(abc.ABC):
 
         sample_ids = ids[sample]
         for name, out in outs.items():
-            if 'class_embeds' in name:
+            if '_embeds' in name:
                 sample_embeds = out[sample]
                 sample_tsne = self._get_projections(name, sample_embeds)
                 outs_proj[f'{name}_tsne'] = sample_tsne

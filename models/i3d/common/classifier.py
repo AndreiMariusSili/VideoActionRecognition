@@ -19,10 +19,10 @@ class I3DClassifier(nn.Module):
         self.dropout_prob = dropout_prob
         self.num_classes = num_classes
 
-        self.avg_pool = nn.AdaptiveAvgPool3d((1, 1, 1))
+        self.avg_pool = nn.AdaptiveAvgPool3d([1, 1, 1])
         self.dropout = nn.Dropout3d(dropout_prob)
-        opts = mo.Unit3DOptions(in_channels=embed_planes, out_channels=self.num_classes, kernel_size=(1, 1, 1),
-                                stride=(1, 1, 1), activation='none', use_bias=False, use_bn=False, padding='VALID')
+        opts = mo.Unit3DOptions(in_channels=embed_planes, out_channels=self.num_classes, kernel_size=[1, 1, 1],
+                                stride=[1, 1, 1], activation='none', use_bias=False, use_bn=False, padding='SAME')
 
         self.classifier = ib.Unit3D(opts)
 

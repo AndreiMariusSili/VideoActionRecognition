@@ -1,8 +1,9 @@
 import pathlib as pl
 
+import constants as ct
+import env
 import helpers as ghp
 import prepro.helpers as php
-from env import logging
 
 
 def merge_meta(train_path: pl.Path, dev_path: pl.Path, merged_path: pl.Path) -> None:
@@ -15,13 +16,13 @@ def merge_meta(train_path: pl.Path, dev_path: pl.Path, merged_path: pl.Path) -> 
 
     merged = train_meta.append(dev_meta, verify_integrity=True)
     assert len(merged) == len(train_meta) + len(dev_meta)
-    logging.info(f'Merged: {len(train_meta)} + {len(dev_meta)} = {len(merged)}.')
+    env.LOGGER.info(f'Merged: {len(train_meta)} + {len(dev_meta)} = {len(merged)}.')
 
-    merged.to_json(merged_path, orient='index')
+    merged.to_json(ct.WORK_ROOT / merged_path, orient='index')
 
 
 def main(dataset: str, split: int):
-    logging.info(f'Merging {dataset} train and dev DataFrames into one...')
+    env.LOGGER.info(f'Merging {dataset} train and dev DataFrames into one...')
     [train, dev, merged, _] = php.get_meta_paths(dataset, split)
     merge_meta(train, dev, merged)
-    logging.info('...Done.')
+    env.LOGGER.info('...Done.')

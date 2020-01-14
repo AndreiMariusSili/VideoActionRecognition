@@ -1,5 +1,5 @@
+import glob
 import pathlib as pl
-from glob import glob
 from typing import List, Optional, Union
 
 import bokeh.models as bom
@@ -45,17 +45,17 @@ class Video(object):
         """Get a cut of the entire video."""
         if self.read_jpeg:
             path = self.root_path / self.meta.image_path
-            all_frames = np.array(sorted(glob(f'{path}/*.jpeg')))
+            escaped = glob.escape(path.as_posix())
+            all_frames = np.array(sorted(glob.glob(f'{escaped}/*.jpeg')))
             cut_frames = all_frames[0:self.cut]
         else:
             all_frames = np.arange(self.meta.length, dtype=np.int)
             cut_frames = all_frames[0:self.cut]
 
-        if self.num_segments is not None:
-            if self.setting == 'train':
-                cut_frames = self.__random_sample_segments(cut_frames)
-            else:
-                cut_frames = self.__fixed_sample_segments(cut_frames)
+        if self.setting == 'train':
+            cut_frames = self.__random_sample_segments(cut_frames)
+        else:
+            cut_frames = self.__fixed_sample_segments(cut_frames)
 
         return cut_frames
 
@@ -74,12 +74,14 @@ class Video(object):
         return np.array(sample).reshape(-1)
 
     def __fixed_sample_segments(self, cut_frame_paths: np.ndarray):
-        """Sample frames at roughly equal intervals from the video. If the video is too short, some frames will
-        be duplicated. self.cut -1 to prevent rounding leading to out of bounds index."""
+        """Samples the midpoint frame from segments of roughly equal lengths."""
         size = self.segment_sample_size * self.num_segments
-        sample_indices = np.linspace(0, self.cut - 1, size, True).round().astype(np.int)
+        cut_frame_paths_sample = []
+        for split in np.array_split(cut_frame_paths, size):
+            midpoint_frame = split[len(split) // 2]
+            cut_frame_paths_sample.append(midpoint_frame)
 
-        return cut_frame_paths[sample_indices]
+        return np.array(cut_frame_paths_sample)
 
     def __get_frame_data(self):
         if self.read_jpeg:

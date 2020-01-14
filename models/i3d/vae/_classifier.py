@@ -20,18 +20,18 @@ class I3DClassifier(nn.Module):
         self.dropout_prob = dropout_prob
         self.num_classes = num_classes
 
-        self.aggregation = nn.Sequential(
-            nn.AdaptiveAvgPool3d((1, 1, 1)),
-            nn.Dropout3d(dropout_prob)
-        )
-        opts = mo.Unit3DOptions(in_channels=latent_planes, out_channels=self.num_classes, kernel_size=(1, 1, 1),
-                                stride=(1, 1, 1), activation='none', use_bias=False, use_bn=False, padding='VALID')
+        self.avg_pool = nn.AdaptiveAvgPool3d([1, 1, 1])
+        self.dropout = nn.Dropout3d(dropout_prob)
+        opts = mo.Unit3DOptions(in_channels=latent_planes, out_channels=self.num_classes, kernel_size=[1, 1, 1],
+                                stride=[1, 1, 1], activation='none', use_bias=False, use_bn=False, padding='VALID')
         self.classifier = ib.Unit3D(opts)
 
     def forward(self, _in: th.Tensor) -> tp.Tuple[th.Tensor, th.Tensor]:
         b, s, c, t, h, w = _in.shape
         _in = _in.reshape(b * s, c, t, h, w)
-        _embed = self.aggregation(_in)
-        _out = self.classifier(_embed)
+
+        _embed = self.avg_pool(_in)
+        _out = self.dropout(_embed)
+        _out = self.classifier(_out)
 
         return _out.reshape(b, s, self.num_classes), _embed.reshape(b, s, self.latent_planes)

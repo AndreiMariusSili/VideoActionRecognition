@@ -10,8 +10,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch as th
+import torch.cuda as cuda
 import torch.nn as nn
-import torch.nn.functional as nn_func
+import torch.nn.functional as nnfunc
 
 import constants as ct
 import databunch.databunch as db
@@ -26,180 +27,30 @@ import options.experiment_options as eo
 import specs.maps as sm
 
 
-def flow2img(flow_data):
-    """
-    convert optical flow into color image
-    :param flow_data:
-    :return: color image
-    """
-    u = flow_data[:, :, 0]
-    v = flow_data[:, :, 1]
-
-    UNKNOW_FLOW_THRESHOLD = 1e7
-    pr1 = abs(u) > UNKNOW_FLOW_THRESHOLD
-    pr2 = abs(v) > UNKNOW_FLOW_THRESHOLD
-    idx_unknown = (pr1 | pr2)
-    u[idx_unknown] = v[idx_unknown] = 0
-
-    rad = np.sqrt(u ** 2 + v ** 2)
-    maxrad = max(-1, np.max(rad))
-    u = u / maxrad + np.finfo(float).eps
-    v = v / maxrad + np.finfo(float).eps
-
-    img = compute_color(u, v)
-
-    idx = np.repeat(idx_unknown[:, :, np.newaxis], 3, axis=2)
-    img[idx] = 0
-
-    return np.uint8(img)
-
-
-def compute_color(u, v):
-    """
-    compute optical flow color map
-    :param u: horizontal optical flow
-    :param v: vertical optical flow
-    :return:
-    """
-
-    height, width = u.shape
-    img = np.zeros((height, width, 3))
-
-    nan_idx = np.isnan(u) | np.isnan(v)
-    u[nan_idx] = v[nan_idx] = 0
-
-    colorwheel = make_color_wheel()
-    ncols = np.size(colorwheel, 0)
-
-    rad = np.sqrt(u ** 2 + v ** 2)
-
-    a = np.arctan2(-v, -u) / np.pi
-
-    fk = (a + 1) / 2 * (ncols - 1) + 1
-
-    k0 = np.floor(fk).astype(int)
-
-    k1 = k0 + 1
-    k1[k1 == ncols + 1] = 1
-    f = fk - k0
-
-    for i in range(0, np.size(colorwheel, 1)):
-        tmp = colorwheel[:, i]
-        col0 = tmp[k0 - 1] / 255
-        col1 = tmp[k1 - 1] / 255
-        col = (1 - f) * col0 + f * col1
-
-        idx = rad <= 1
-        col[idx] = 1 - rad[idx] * (1 - col[idx])
-        notidx = np.logical_not(idx)
-
-        col[notidx] *= 0.75
-        img[:, :, i] = np.uint8(np.floor(255 * col * (1 - nan_idx)))
-
-    return img
-
-
-def make_color_wheel():
-    """
-    Generate color wheel according Middlebury color code
-    :return: Color wheel
-    """
-    RY = 15
-    YG = 6
-    GC = 4
-    CB = 11
-    BM = 13
-    MR = 6
-
-    ncols = RY + YG + GC + CB + BM + MR
-
-    colorwheel = np.zeros([ncols, 3])
-
-    col = 0
-
-    # RY
-    colorwheel[0:RY, 0] = 255
-    colorwheel[0:RY, 1] = np.transpose(np.floor(255 * np.arange(0, RY) / RY))
-    col += RY
-
-    # YG
-    colorwheel[col:col + YG, 0] = 255 - np.transpose(np.floor(255 * np.arange(0, YG) / YG))
-    colorwheel[col:col + YG, 1] = 255
-    col += YG
-
-    # GC
-    colorwheel[col:col + GC, 1] = 255
-    colorwheel[col:col + GC, 2] = np.transpose(np.floor(255 * np.arange(0, GC) / GC))
-    col += GC
-
-    # CB
-    colorwheel[col:col + CB, 1] = 255 - np.transpose(np.floor(255 * np.arange(0, CB) / CB))
-    colorwheel[col:col + CB, 2] = 255
-    col += CB
-
-    # BM
-    colorwheel[col:col + BM, 2] = 255
-    colorwheel[col:col + BM, 0] = np.transpose(np.floor(255 * np.arange(0, BM) / BM))
-    col += + BM
-
-    # MR
-    colorwheel[col:col + MR, 2] = 255 - np.transpose(np.floor(255 * np.arange(0, MR) / MR))
-    colorwheel[col:col + MR, 0] = 255
-
-    return colorwheel
-
-
-def recon2frames(recon: np.ndarray, flow: bool = False) -> t.List[np.ndarray]:
-    _t, h, w, c = recon.shape
-
-    if flow:
-        frames = [flow2img(flow.squeeze()) for flow in np.split(recon, _t)]
-    else:
-        frames = [frame.squeeze() for frame in np.split(recon, _t)]
-
-    return frames
-
-
-def plot_frames(frames: t.List[np.ndarray], titles: t.List[str] = None, cols: int = 1,
-                group: bool = True) -> t.Union[plt.Figure, t.List[plt.Figure]]:
+def plot_frames(frames: t.List[np.ndarray], titles: t.List[str] = None, cols: int = 1) -> plt.Figure:
     """Display a list of images in a single figure with matplotlib.
 
     :param frames: List of np.arrays compatible with plt.imshow.
     :param titles: List of titles corresponding to each image. Must have the same length as images.
     :param cols: Number of columns in figure (number of rows is set to np.ceil(n_images/float(cols))).
-    :param group: Whether to grp recon in a single subplot or plot separately.
     :return: The plt Figure object.
     """
     assert ((titles is None) or (len(frames) == len(titles)))
     num_frames = len(frames)
     if titles is None:
         titles = [f'Frame {i:2d}' % i for i in range(1, num_frames + 1)]
-    if group:
-        fig: plt.Figure = plt.figure()
-        for n, (image, title) in enumerate(zip(frames, titles)):
-            a = fig.add_subplot(np.ceil(num_frames / float(cols)), cols, n + 1)
-            plt.imshow(image)
-            a.set_title(title)
-        fig.set_size_inches(np.array(fig.get_size_inches()) * num_frames)
-        [ax.get_xaxis().set_visible(False) for ax in fig.axes]
-        [ax.get_yaxis().set_visible(False) for ax in fig.axes]
-        fig.tight_layout()
-        fig.show()
+    fig: plt.Figure = plt.figure()
+    for n, (image, title) in enumerate(zip(frames, titles)):
+        a = fig.add_subplot(np.ceil(num_frames / float(cols)), cols, n + 1)
+        plt.imshow(image)
+        a.set_title(title)
+    fig.set_size_inches(np.array(fig.get_size_inches()) * num_frames)
+    [ax.get_xaxis().set_visible(False) for ax in fig.axes]
+    [ax.get_yaxis().set_visible(False) for ax in fig.axes]
+    fig.tight_layout()
+    fig.show()
 
-        return fig
-    else:
-        figs = []
-        for n, (image, title) in enumerate(zip(frames, titles)):
-            fig: plt.Figure = plt.figure()
-            [ax.get_xaxis().set_visible(False) for ax in fig.axes]
-            [ax.get_yaxis().set_visible(False) for ax in fig.axes]
-            plt.imshow(image)
-            plt.axis('off')
-            fig.tight_layout()
-            fig.show()
-            figs.append(fig)
-
-        return figs
+    return fig
 
 
 def plot_class_heat_map(class_values: np.ndarray, title: str = None) -> plt.Figure:
@@ -230,7 +81,7 @@ class BaseVisualiser(abc.ABC):
         if self.opts:
             self.run_viz_dir = ct.WORK_ROOT / self.opts.run_dir / 'figures'
             self.run_viz_dir.mkdir(exist_ok=True)
-            self.device = th.device(f'cpu')
+            self.device = th.device(f'cuda:0' if cuda.is_available() else f'cpu')
             self.data_bunch, self.opts.model.opts.num_classes = self._init_databunch()
             self.best_ckpt = self._get_best_ckpt()
             self.model = self._init_model()
@@ -255,7 +106,7 @@ class BaseVisualiser(abc.ABC):
         model = sm.Models[self.opts.model.arch].value(**opts).to(self.device)
         model.load_state_dict(th.load(self.best_ckpt, map_location=self.device))
 
-        model = model.eval()
+        model.eval()
 
         return model
 
@@ -273,23 +124,6 @@ class BaseVisualiser(abc.ABC):
         data_bunch = db.VideoDataBunch(db_opts=self.opts.databunch)
 
         return data_bunch, len(data_bunch.lids)
-
-    def plot_input(self, split: str, ds_idx: int, save: bool = True, grp: bool = True) -> t.List[plt.Figure]:
-        dataset = self.select_dataset(split)
-        video, label = self.get_data_point(split, ds_idx)
-
-        length = dataset.so.num_segments
-        frames = recon2frames(video.data, False)
-        titles = [f't={_t}' for _t in range(length)]
-
-        fig_or_figs = plot_frames(frames, titles, len(frames), grp)
-        if isinstance(fig_or_figs, plt.Figure):
-            self.save_fig(fig_or_figs, f'frames_target_{split}_{ds_idx}.jpg', save)
-            return [fig_or_figs]
-        elif isinstance(fig_or_figs, list):
-            for i, fig in enumerate(fig_or_figs):
-                self.save_fig(fig, f'frames_target_{split}_{ds_idx}_{i}.jpg', save)
-            return fig_or_figs
 
     def plot_class_target(self, split: str, dataset_idx: int, save: bool = True) -> t.List[plt.Figure]:
         dataset = self.select_dataset(split)
@@ -328,7 +162,7 @@ class BaseVisualiser(abc.ABC):
         target = th.tensor(label.data, dtype=th.int64, device=self.device).reshape(-1)
         preds = self.preds(video)
         for sample_idx, pred in enumerate(preds):
-            loss = nn_func.cross_entropy(pred.unsqueeze(0), target)
+            loss = nnfunc.cross_entropy(pred.unsqueeze(0), target)
             one_hot_loss = th.zeros(len(dataset.lids), dtype=th.int64, device=self.device)
             one_hot_loss = one_hot_loss.scatter(0, target, loss).reshape(-1, 1).cpu().numpy()
             fig = plot_class_heat_map(one_hot_loss)
@@ -337,55 +171,48 @@ class BaseVisualiser(abc.ABC):
 
         return figs
 
-    def plot_recon_target(self, split: str, ds_idx: int, save: bool = True, grp: bool = True) -> t.List[plt.Figure]:
-        video, label = self.get_data_point(split, ds_idx)
+    def plot_frames_target(self, split: str, dataset_idx: int, save: bool = True) -> t.List[plt.Figure]:
+        dataset = self.select_dataset(split)
+        video, label = self.get_data_point(split, dataset_idx)
 
-        frames = recon2frames(video.recon, self.opts.model.opts.flow)
-        titles = [f't={_t}' for _t in range(len(frames))]
+        length = dataset.so.num_segments * dataset.so.segment_size
+        frames = self.frames2video(video.data)
+        titles = [f't={_t}' for _t in range(length)]
 
-        fig_or_figs = plot_frames(frames, titles, len(frames), grp)
-        if isinstance(fig_or_figs, plt.Figure):
-            self.save_fig(fig_or_figs, f'frames_target_{split}_{ds_idx}.jpg', save)
-            return [fig_or_figs]
-        elif isinstance(fig_or_figs, list):
-            for i, fig in enumerate(fig_or_figs):
-                self.save_fig(fig, f'frames_target_{split}_{ds_idx}_{i}.jpg', save)
-            return fig_or_figs
+        fig = plot_frames(frames, titles, len(frames))
+        self.save_fig(fig, f'frames_target_{split}_{dataset_idx}.jpg', save)
 
-    def plot_recon_pred(self, split: str, ds_idx: int, save: bool = True, grp: bool = True) -> t.List[plt.Figure]:
-        video, label = self.get_data_point(split, ds_idx)
-        video.to_tensor()
+        return [fig]
+
+    def plot_frames_recon(self, split: str, dataset_idx: int, save: bool = True) -> t.List[plt.Figure]:
+        dataset = self.select_dataset(split)
+        video, label = self.get_data_point(split, dataset_idx)
 
         figs = []
+        length = dataset.so.num_segments * dataset.so.segment_size
+        titles = [f't={_t}' for _t in range(length)]
         recons = self.recons(video)
         for sample_idx, recon in enumerate(recons):
-            recon = np.transpose(recon.cpu().numpy(), axes=(0, 2, 3, 1))
-            recon = recon2frames(recon, self.opts.model.opts.flow)
-            titles = [f't={_t}' for _t in range(len(recon))]
-            fig_or_figs = plot_frames(recon, titles, len(recon), grp)
-            if isinstance(fig_or_figs, plt.Figure):
-                self.save_fig(fig_or_figs, f'frames_recon_{split}_{ds_idx}_{sample_idx}.jpg', save)
-            elif isinstance(fig_or_figs, list):
-                for i, fig in enumerate(fig_or_figs):
-                    self.save_fig(fig, f'frames_recon_{split}_{ds_idx}_{sample_idx}_{i}.jpg', save)
-            figs.append(fig_or_figs)
+            recon = self.frames2video(recon)
+            fig = plot_frames(recon, titles, len(recon))
+            self.save_fig(fig, f'frames_recon_{split}_{dataset_idx}_{sample_idx}.jpg', save)
+            figs.append(fig)
 
         return figs
 
-    def plot_recon_loss(self, split: str, dataset_idx: int, save: bool = True) -> t.List[plt.Figure]:
+    def plot_frames_loss(self, split: str, dataset_idx: int, save: bool = True) -> t.List[plt.Figure]:
         dataset = self.select_dataset(split)
         video, label = self.get_data_point(split, dataset_idx)
-        video_data = video.flow if self.opts.model.opts.flow else video.data
 
         figs = []
-        length = dataset.so.num_segments
+        length = dataset.so.num_segments * dataset.so.segment_size
         titles = [f't={_t}' for _t in range(length)]
-        target = th.tensor(video_data, dtype=th.float32, device=self.device).unsqueeze(0)
+        target = th.tensor(video.data, dtype=th.float32, device=self.device).unsqueeze(0)
         recons = self.recons(video)
         for sample_idx, recon in enumerate(recons):
-            loss = nn_func.smooth_l1_loss(recon.unsqueeze(0), target, reduction='none').squeeze()
+            loss = nnfunc.binary_cross_entropy(recon.unsqueeze(0), target, reduction='none').squeeze()
             loss = (loss - th.min(loss)) / (th.max(loss) - th.min(loss))  # distribute to the full range [0, 1]
-            loss = recon2frames(loss.numpy())
+            loss = self.frames2video(loss)
             fig = plot_frames(loss, titles, length)
             self.save_fig(fig, f'frames_loss_{split}_{dataset_idx}_{sample_idx}.jpg', save)
             figs.append(fig)
@@ -395,13 +222,12 @@ class BaseVisualiser(abc.ABC):
     def plot_class_embeds(self, split: str, save: bool = True) -> plt.Figure:
         dataset = self.select_dataset(split)
         ids = np.load(ct.WORK_ROOT / self.opts.run_dir / split / 'tsne_ids.npy')
+
         class_embeds = np.load(ct.WORK_ROOT / self.opts.run_dir / split / 'class_embeds_tsne.npy')
 
-        labels = dataset.meta.reindex(ids)[['label']].values
+        labels = dataset.meta.loc[ids, ['label']].values
         class_embeds = pd.DataFrame(np.concatenate([class_embeds, labels], axis=1), columns=['x1', 'x2', 'label'])
-        labels = pd.unique(class_embeds['label'])[0:12]
-        class_embeds = class_embeds[class_embeds['label'].isin(labels)]
-        sns.scatterplot(x='x1', y='x2', hue='label', data=class_embeds, legend=False)
+        sns.scatterplot(x='x1', y='x2', hue='label', data=class_embeds)
         plt.show()
         self.save_fig(plt.gcf(), f'class_embeds_{split}.jpg', save)
 
@@ -433,11 +259,8 @@ class BaseVisualiser(abc.ABC):
 
     def get_data_point(self, split: str, idx: int) -> t.Tuple[dv.Video, dl.Label]:
         dataset = self.select_dataset(split)
-        video, label, meta = dataset[idx]
-        video.to_numpy()
-        label.to_numpy()
 
-        return video, label
+        return dataset[idx]
 
     def select_dataset(self, split: str) -> ds.VideoDataset:
         assert split in ['train', 'dev', 'test'], f'Unknown split: {split}.'
@@ -447,6 +270,15 @@ class BaseVisualiser(abc.ABC):
             return self.data_bunch.dev_set
         else:
             return self.data_bunch.test_set
+
+    def frames2video(self, frames: t.Union[np.ndarray, th.Tensor]) -> t.List[np.ndarray]:  # noqa
+        if isinstance(frames, th.Tensor):
+            frames = frames.cpu().numpy()
+
+        _t, c, h, w = frames.shape
+        frames = np.transpose(frames, axes=(0, 2, 3, 1))
+
+        return [frame.squeeze() for frame in np.split(frames, _t)]
 
     def save_fig(self, fig: plt.Figure, name: str, save: bool):
         _dir = self.run_viz_dir if self.opts else self.general_viz_dir

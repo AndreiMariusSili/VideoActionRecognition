@@ -5,9 +5,9 @@ from typing import List, Tuple
 import pandas as pd
 import skvideo.io
 
+import env
 import helpers as ghp
 import prepro.helpers as php
-from env import logging
 
 DATA_ROOT_DIR = None
 
@@ -32,8 +32,8 @@ def main(dataset: str, split: int):
     [train, dev, _, test] = php.get_meta_paths(dataset, split)
 
     for path in [train, dev, test]:
-        logging.info(f'Extracting jpeg images from {path.as_posix()}...')
+        env.LOGGER.info(f'Extracting jpeg images from {path.as_posix()}...')
         meta = ghp.read_meta(path)
         for _ in ghp.parallel.execute(_extract_jpeg, list(meta.iterrows()), 1):
             continue
-        logging.info('...Done')
+        env.LOGGER.info('...Done')

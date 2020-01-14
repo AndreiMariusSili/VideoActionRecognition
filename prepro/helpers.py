@@ -13,7 +13,7 @@ def get_data_root_path(dataset: str) -> pl.Path:
     else:
         raise ValueError(f'Unknown dataset {dataset}.')
 
-    return root_path
+    return ct.WORK_ROOT / root_path
 
 
 def get_stats_path(dataset: str, split: int) -> pl.Path:
@@ -25,7 +25,7 @@ def get_stats_path(dataset: str, split: int) -> pl.Path:
     else:
         raise ValueError(f'Unknown dataset {dataset}.')
 
-    return stats_path
+    return ct.WORK_ROOT / stats_path
 
 
 def get_video_path(dataset: str):
