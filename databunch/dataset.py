@@ -1,5 +1,6 @@
-import typing as tp
+import typing as t
 
+import imgaug.augmenters as ia
 import numpy as np
 import pandas as pd
 import torch as th
@@ -7,52 +8,23 @@ from torch.utils import data as thd
 
 import constants as ct
 import databunch.label as pil
-import databunch.transforms as dt
 import databunch.video as piv
 import databunch.video_meta as pim
 import helpers as hp
 import options.data_options as do
 
 
-def _pad_videos(videos: tp.List[np.ndarray], ml: int) -> tp.Tuple[np.ndarray, ...]:
-    """Pad a tuple of videos to the same length."""
-    pad = dt.VideoPad(ml)
-    return tuple(pad(video) for video in videos)
-
-
-def _max_dimensions(videos: tp.List[np.ndarray]) -> tp.Tuple[int, int, int]:
-    """Get the maximum length, height, and width of a batch of videos."""
-    ml = mh = mw = 0
-    for video in videos:
-        l, c, h, w = video.shape
-        if l > ml:
-            ml = l
-        if h > mh:
-            mh = h
-        if w > mw:
-            mw = w
-
-    return ml, mh, mw
+def init_worker(_id: int):
+    np.random.seed(_id)
 
 
 def collate(batch: [(piv.Video, pil.Label)]) -> (th.Tensor, th.Tensor, piv.Video, pil.Label):
-    """Transform list of videos and labels to fixed size tensors. Return original list and collated batch."""
     videos, labels = zip(*batch)
 
-    videos_data = [video.data for video in videos]
-    labels_data = [label.data for label in labels]
+    videos_data = np.stack([np.stack(video.data, axis=0) for video in videos], axis=0)
+    labels_data = np.array([label.data for label in labels])
 
-    ml, mh, mw = _max_dimensions(videos_data)
-    videos_data = _pad_videos(videos_data, ml)
-
-    videos_data = thd.dataloader.default_collate(videos_data)  # noqa
-    labels_data = thd.dataloader.default_collate(labels_data)  # noqa
-
-    return videos_data, labels_data, videos, labels
-
-
-def init_worker(_id: int):
-    np.random.seed(_id)
+    return th.from_numpy(videos_data).to(dtype=th.float32) / 255, th.from_numpy(labels_data), videos, labels
 
 
 class VideoDataset(thd.Dataset):
@@ -76,20 +48,45 @@ class VideoDataset(thd.Dataset):
                 self._stratified_sample_meta(data_opts.keep)
             else:
                 self.meta = self.meta.iloc[0:data_opts.keep]
-        self.transform = self._compose_transforms()
+        self.aug_seq = self._compose_aug_seq()
 
-    def __getitem__(self, item: int) -> tp.Tuple[piv.Video, pil.Label]:
+    def _compose_aug_seq(self) -> ia.Sequential:
+        if self.do.setting == 'train':
+            aug_seq = ia.Sequential([
+                ia.PadToFixedSize(224, 224),
+                ia.CropToFixedSize(224, 224),
+                ia.Fliplr(0.5),
+                ia.Flipud(0.5),
+                ia.ChannelShuffle(),
+                ia.Add((-25, 25)),
+                ia.AddToHueAndSaturation((-25, 25), per_channel=True),
+                ia.CoarseDropout(0.1, size_percent=0.1),
+            ])
+        else:
+            aug_seq = ia.Sequential([
+                ia.PadToFixedSize(224, 224, position='center'),
+                ia.CropToFixedSize(224, 224, position='center'),
+            ])
+
+        return aug_seq
+
+    def aug(self, video_data: t.List[np.ndarray]) -> t.List[np.ndarray]:
+        det_aug_seq = self.aug_seq.to_deterministic()
+
+        return [det_aug_seq.augment_image(frame_data) for frame_data in video_data]
+
+    def __getitem__(self, item: int) -> t.Tuple[piv.Video, pil.Label]:
         video_meta = pim.VideoMeta(**self.meta.iloc[item][pim.VideoMeta.fields].to_dict())
 
         video = piv.Video(video_meta, ct.WORK_ROOT / self.do.root_path, self.do.read_jpeg,
-                          self.cut, self.do.setting, self.so.num_segments, self.so.segment_size)
+                          self.cut, self.do.setting, self.so.num_segments)
         label = pil.Label(video_meta)
 
-        video.data = self.transform(video.data)
+        video.data = self.aug(video.data)
 
         return video, label
 
-    def get_batch(self, n: int) -> tp.Tuple[tp.List[piv.Video], tp.List[pil.Label]]:
+    def get_batch(self, n: int) -> t.Tuple[t.List[piv.Video], t.List[pil.Label]]:
         videos, labels = [], []
         for i, row in self.meta.sample(n=n).iterrows():
             iloc = self.meta.index.get_loc(i)
@@ -106,24 +103,6 @@ class VideoDataset(thd.Dataset):
         string = f"""Something-Something Dataset: {len(self)} x {self[0]}"""
 
         return string
-
-    def _compose_transforms(self) -> dt.VideoCompose:
-        """Create transformation pipeline depending on setting."""
-        if self.do.setting == 'train':
-            return dt.VideoCompose([
-                dt.Pad(self.frame_size, self.frame_size),
-                dt.RandomCrop(self.frame_size),
-                dt.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-                dt.ToVolumeArray(3, True),
-                dt.ArrayNormalize(255)
-            ])
-        else:
-            return dt.VideoCompose([
-                dt.Pad(self.frame_size, self.frame_size),
-                dt.CenterCrop(self.frame_size),
-                dt.ToVolumeArray(3, True),
-                dt.ArrayNormalize(255)
-            ])
 
     def _stratified_sample_meta(self, keep: float):
         """Selects the first instances of a class up to a proportion keep."""

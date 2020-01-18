@@ -50,7 +50,7 @@ class VariationalAutoEncoderEvaluator(_base.BaseEvaluator):
             sample_embeds = sample_embeds.reshape([n * s, c])
             pca_ndim = min(n, c, 64)
             sample_pca = skd.PCA(pca_ndim, random_state=ct.RANDOM_STATE).fit_transform(sample_embeds)
-            sample_tsne = skm.TSNE(random_state=ct.RANDOM_STATE).fit_transform(sample_pca)
+            sample_tsne = skm.TSNE(2, verbose=1, random_state=ct.RANDOM_STATE).fit_transform(sample_pca)
             sample_tsne = sample_tsne.reshape([n, s, 2])
         elif embed_name == 'temporal_embeds':
             if sample_embeds.ndim == 6:  # sequence models
@@ -66,7 +66,8 @@ class VariationalAutoEncoderEvaluator(_base.BaseEvaluator):
             for i in range(_t):
                 sample_pca[:, i, :] = skd.PCA(pca_ndim, random_state=ct.RANDOM_STATE).fit_transform(
                     sample_embeds[:, i, :])
-                sample_tsne[:, i, :] = skm.TSNE(random_state=ct.RANDOM_STATE).fit_transform(sample_pca[:, i, :])
+                sample_tsne[:, i, :] = skm.TSNE(2, verbose=1, random_state=ct.RANDOM_STATE) \
+                    .fit_transform(sample_pca[:, i, :])
             sample_tsne = sample_tsne.reshape([n, s, _t, 2])
         else:
             raise ValueError(f'Unknown embed name: {embed_name}.')

@@ -28,7 +28,6 @@ class BaseEvaluator(abc.ABC):
     def __init__(self, opts: eo.ExperimentOptions, local_rank: int):
         self.opts = opts
         self.local_rank = local_rank
-        self.logger = lg.ExperimentLogger(self.opts, True, self.opts.trainer.metrics, self.opts.evaluator.metrics)
 
         self.rank, self.world_size = self._init_distributed()
         self.device = th.device(f'cuda' if cuda.is_available() else f'cpu')
@@ -36,6 +35,15 @@ class BaseEvaluator(abc.ABC):
         self.best_ckpt = self._get_best_ckpt()
         self.model = self._init_model()
         self.train_evaluator, self.dev_evaluator, self.test_evaluator = self._init_evaluators()
+
+        self.logger = lg.ExperimentLogger(
+            self.opts,
+            True,
+            self.opts.trainer.metrics,
+            self.opts.evaluator.metrics
+        )
+        self.logger.attach_train_pbar(self.train_evaluator)
+        print(self.opts)
 
     def _init_distributed(self) -> t.Tuple[int, int]:
         """Create distributed setup."""
@@ -61,7 +69,7 @@ class BaseEvaluator(abc.ABC):
         opts = dc.asdict(copy.deepcopy(self.opts.model.opts))
         del opts['batch_size']
         model = sm.Models[self.opts.model.arch].value(**opts).to(self.device)
-        self.logger.log(f'Loading model from {self.best_ckpt}...')
+        print(f'Loading model from {self.best_ckpt}...')
         model.load_state_dict(th.load(self.best_ckpt, map_location=self.device))
 
         if self.opts.overfit:
@@ -86,7 +94,6 @@ class BaseEvaluator(abc.ABC):
         self.opts.databunch.dev_dso.setting = 'eval'
         self.opts.databunch.test_dso.setting = 'eval'
         self.opts.databunch.dlo.shuffle = False
-        self.opts.databunch.dlo.batch_size *= self.opts.world_size
         self.opts.databunch.distributed = self.local_rank != -1
         data_bunch = db.VideoDataBunch(db_opts=self.opts.databunch)
 

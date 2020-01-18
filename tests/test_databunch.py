@@ -7,17 +7,22 @@ import specs
 HMDB_DBO = [
     specs.datasets.hmdb1.dbo_4,
     specs.datasets.hmdb2.dbo_4,
-    specs.datasets.hmdb3.dbo_4
+    specs.datasets.hmdb3.dbo_4,
+    specs.datasets.hmdb1.dbo_16,
+    specs.datasets.hmdb2.dbo_16,
+    specs.datasets.hmdb3.dbo_16,
 ]
 SMTH_DBO = [
-    specs.datasets.smth1.dbo_4
+    specs.datasets.smth1.dbo_4,
+    specs.datasets.smth1.dbo_16
 ]
 
 
 @pytest.mark.parametrize('dbo', HMDB_DBO + SMTH_DBO)
 def test_databunch(dbo):
-    dbo.dlo.num_workers = 8
-    dbo.dlo.batch_size = 32
+    dbo.dlo.timeout = 0
+    dbo.dlo.num_workers = 6
+    dbo.dlo.batch_size = 64
     dbo.dlo.shuffle = False
     dbo.cut = 1.0
 
@@ -34,7 +39,7 @@ def test_databunch(dbo):
             dataset, dataloader = bunch.test_set, bunch.test_loader
 
         pbar = tqdm.tqdm(total=len(dataset))
-        for i, (x, y, videos, labels) in enumerate(dataloader):
+        for i, (x, y, *_) in enumerate(dataloader):
             pbar.update(x.shape[0])
         pbar.clear()
         pbar.close()

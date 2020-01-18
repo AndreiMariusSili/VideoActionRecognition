@@ -2,7 +2,7 @@
 
 #SBATCH -p gpu
 #SBATCH -N 1
-#SBATCH -t 12:00:00
+#SBATCH -t 24:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=andrei.sili1994@gmail.com
 #SBATCH -D /home/asili/master-thesis/work/out
@@ -17,22 +17,16 @@ MODEL="${5}"
 
 # shellcheck source=/dev/null
 source "${MT_SOURCE}/scripts/lisa/common/setup.sh" "gpu"
-# shellcheck source=/dev/null
-source "${HOME}/master-thesis/src/scripts/lisa/common/move_to_scratch.sh" "${DATASET}"
 
 echo "=================================================================================================================="
 echo "Running experiment..."
 echo "=================================================================================================================="
 python "-m" "torch.distributed.launch" "--nnodes=1" "--nproc_per_node=4" "${MT_SOURCE}/main.py" "run_experiment" "--opts" "dataset:${DATASET}${SPLIT},cut:${CUT},frames:${FRAMES},model:${MODEL}"
-# shellcheck source=/dev/null
-source "${MT_SOURCE}/scripts/lisa/common/move_to_home.sh"
 
 echo "=================================================================================================================="
 echo "Evaluating experiment..."
 echo "=================================================================================================================="
 python "-m" "torch.distributed.launch" "--nnodes=1" "--nproc_per_node=1" "${MT_SOURCE}/main.py" "eval_experiment" "--opts" "dataset:${DATASET}${SPLIT},cut:${CUT},frames:${FRAMES},model:${MODEL}"
-# shellcheck source=/dev/null
-source "${MT_SOURCE}/scripts/lisa/common/move_to_home.sh"
 
 echo "=================================================================================================================="
 echo "Cleaning up..."

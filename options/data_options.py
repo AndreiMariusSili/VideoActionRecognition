@@ -2,13 +2,10 @@ import dataclasses as dc
 import pathlib as pl
 from typing import Optional, Tuple, Union
 
-import databunch.transforms as dt
-
 
 @dc.dataclass
 class SamplingOptions:
     num_segments: int
-    segment_size: int
 
 
 @dc.dataclass
@@ -17,7 +14,6 @@ class DataSetOptions:
     meta_path: pl.Path
     read_jpeg: bool
     setting: str
-    transform: Optional[dt.VideoCompose] = None
     keep: Union[float, int, None] = None
 
 

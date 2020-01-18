@@ -2,9 +2,9 @@ from postpro.visualisers import visualiser_class as vc
 
 
 def main():
-    # class_spec = hp.load_spec(jo.VisualiseExperimentOptions(dataset='hmdb1', cut='4q', frames='16', model='tarn_class'))
-    # ae_spec = hp.load_spec(jo.VisualiseExperimentOptions(dataset='hmdb1', cut='4q', frames='16', model='tarn_class'))
-    # vae_spec = hp.load_spec(jo.VisualiseExperimentOptions(dataset='hmdb1', cut='4q', frames='16', model='tarn_class'))
+    # class_spec = hp.load_spec(jo.VisualiseExperimentOptions(dataset='hmdb1', cut='4q', locs='16', model='tarn_class'))
+    # ae_spec = hp.load_spec(jo.VisualiseExperimentOptions(dataset='hmdb1', cut='4q', locs='16', model='tarn_class'))
+    # vae_spec = hp.load_spec(jo.VisualiseExperimentOptions(dataset='hmdb1', cut='4q', locs='16', model='tarn_class'))
 
     base_viz = vc.ClassVisualiser(None)
     # class_viz = vc.ClassVisualiser(class_spec)

@@ -1,5 +1,4 @@
-"""Holds specifications common across datasets."""
-import torch.multiprocessing as tmp
+import torch.multiprocessing as mp
 
 import options.data_options as po
 
@@ -9,18 +8,17 @@ import options.data_options as po
 dlo = po.DataLoaderOptions(
     batch_size=None,
     shuffle=True,
-    num_workers=tmp.cpu_count(),
-    pin_memory=False,
-    drop_last=False
+    num_workers=mp.cpu_count(),
+    pin_memory=True,
+    drop_last=False,
+    timeout=30
 )
 ########################################################################################################################
 # SAMPLING
 ########################################################################################################################
-so_small = po.SamplingOptions(
+so_4 = po.SamplingOptions(
     num_segments=4,
-    segment_size=1
 )
-so_large = po.SamplingOptions(
-    num_segments=8,
-    segment_size=2
+so_16 = po.SamplingOptions(
+    num_segments=16,
 )

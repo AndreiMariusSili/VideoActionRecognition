@@ -45,7 +45,7 @@ class ClassEvaluator(_base.BaseEvaluator):
             n, c = sample_embeds.shape
             pca_ndim = min(n, c, 64)
             sample_pca = skd.PCA(pca_ndim, random_state=ct.RANDOM_STATE).fit_transform(sample_embeds)
-            sample_tsne = skm.TSNE(2, random_state=ct.RANDOM_STATE).fit_transform(sample_pca)
+            sample_tsne = skm.TSNE(2, verbose=1, random_state=ct.RANDOM_STATE).fit_transform(sample_pca)
         elif embed_name == 'temporal_embeds':
             if sample_embeds.ndim == 5:  # sequence models
                 n, _t, c, h, w = sample_embeds.shape
@@ -60,7 +60,8 @@ class ClassEvaluator(_base.BaseEvaluator):
             for i in range(_t):
                 sample_pca[:, i, :] = skd.PCA(pca_ndim, random_state=ct.RANDOM_STATE).fit_transform(
                     sample_embeds[:, i, :])
-                sample_tsne[:, i, :] = skm.TSNE(random_state=ct.RANDOM_STATE).fit_transform(sample_pca[:, i, :])
+                sample_tsne[:, i, :] = skm.TSNE(2, verbose=1, random_state=ct.RANDOM_STATE) \
+                    .fit_transform(sample_pca[:, i, :])
         else:
             raise ValueError(f'Unknown embed name: {embed_name}.')
 

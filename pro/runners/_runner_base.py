@@ -64,10 +64,15 @@ class BaseRunner(abc.ABC):
         self.optimizer = self._init_optimizer()
         self.lr_scheduler = self._init_lr_scheduler()
 
-        self.logger = pl.ExperimentLogger(self.opts, self.main_proc,
-                                          self.opts.trainer.metrics, self.opts.evaluator.metrics)
+        self.logger = pl.ExperimentLogger(
+            self.opts,
+            self.main_proc,
+            self.opts.trainer.metrics,
+            self.opts.evaluator.metrics
+        )
         self.logger.init_log(self.data_bunch, self.model, self.criterion, self.optimizer, self.lr_scheduler)
         self.logger.persist_run_opts()
+        print(self.opts)
 
         self.trainer, self.evaluator = self._init_engines()
         self._init_events()
@@ -163,7 +168,7 @@ class BaseRunner(abc.ABC):
             if len(latest_models) > 1:
                 raise ValueError('More than one latest model available. Remove old versions.')
             model_path = latest_models.pop()
-            self.logger.log(f'Loading model from {model_path}...')
+            print(f'Loading model from {model_path}...')
             model.load_state_dict(th.load(model_path, map_location=self.device))
 
         if self.opts.overfit:
@@ -192,7 +197,7 @@ class BaseRunner(abc.ABC):
 
         if self.opts.resume:
             optimizer_path = glob.glob((ct.WORK_ROOT / self.opts.run_dir / 'latest_optimizer_*').as_posix()).pop()
-            self.logger.log(f'Loading optimizer from {optimizer_path}...')
+            print(f'Loading optimizer from {optimizer_path}...')
             optimizer.load_state_dict(th.load(optimizer_path, map_location=self.device))
 
         return optimizer
@@ -206,7 +211,7 @@ class BaseRunner(abc.ABC):
 
         if self.opts.resume:
             lr_scheduler_path = glob.glob((ct.WORK_ROOT / self.opts.run_dir / 'latest_lr_scheduler_*').as_posix()).pop()
-            self.logger.log(f'Loading LR scheduler from {lr_scheduler_path}...')
+            print(f'Loading LR scheduler from {lr_scheduler_path}...')
             lr_scheduler.load_state_dict(th.load(lr_scheduler_path, map_location=self.device))
 
         return lr_scheduler
@@ -277,7 +282,7 @@ class BaseRunner(abc.ABC):
         return latest_ckpt, best_ckpt, ckpt_args
 
     def _save_trainer_state(self, _engine: ie.Engine):
-        with open((ct.WORK_ROOT / self.opts.run_dir / 'ckpt' / 'trainer_state.').as_posix(), 'w') as file:
+        with open((ct.WORK_ROOT / self.opts.run_dir / 'ckpt' / 'trainer_state.json').as_posix(), 'w') as file:
             state = {
                 'iteration': _engine.state.iteration,
                 'epoch': _engine.state.epoch,
@@ -287,7 +292,7 @@ class BaseRunner(abc.ABC):
     def _resume_trainer_state(self, _: ie.Engine) -> None:
         """Event handler for start of training. Resume trainer state."""
         if self.opts.resume:
-            self.logger.log(
+            print(
                 f'Loading trainer state from {(ct.WORK_ROOT / self.opts.run_dir / "trainer_state.json").as_posix()}')
             with open((ct.WORK_ROOT / self.opts.run_dir / 'trainer_state.json').as_posix(), 'r') as file:
                 state = json.load(file)
