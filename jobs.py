@@ -64,7 +64,4 @@ def evaluate_experiment(local_rank: int, opts: jo.EvaluateExperimentOptions):
 
 
 def visualise_model(opts: jo.VisualiseExperimentOptions):
-    """Create bokeh visualisation for a trained model."""
-    import viz.visualisation as pv
-    spec = hp.build_spec(opts)
-    pv.Visualisation('none', spec).start()
+    pass

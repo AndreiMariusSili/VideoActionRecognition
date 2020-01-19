@@ -51,7 +51,7 @@ except StopIteration:
 ########################################################################################################################
 HMDB_ROOT_DIR = DATA_ROOT / 'hmdb'
 HMDB_ARCHIVE_DIR = HMDB_ROOT_DIR / 'archive'
-HMDB_TXT_DIR = HMDB_ROOT_DIR / 'txt'
+HMDB_TXT_DIR = HMDB_ROOT_DIR / 'testTrainMulti_7030_splits'
 HMDB_AVI_DIR = HMDB_ROOT_DIR / 'avi'
 HMDB_JPEG_DIR = HMDB_ROOT_DIR / 'jpeg'
 HMDB_META_DIR_1 = HMDB_ROOT_DIR / 'meta' / '1'
