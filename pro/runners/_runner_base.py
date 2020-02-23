@@ -72,7 +72,6 @@ class BaseRunner(abc.ABC):
         )
         self.logger.init_log(self.data_bunch, self.model, self.criterion, self.optimizer, self.lr_scheduler)
         self.logger.persist_run_opts()
-        print(self.opts)
 
         self.trainer, self.evaluator = self._init_engines()
         self._init_events()
@@ -125,13 +124,10 @@ class BaseRunner(abc.ABC):
         # add batch size from model specification.
         self.opts.databunch.dlo.batch_size = self.opts.model.opts.batch_size
 
-        # make sure workers are distributed well across worlds.
-        self.opts.databunch.dlo.num_workers //= self.world_size
-
         # when running overfit, keep batch size of data taking into account world size and use only train set.
         if self.opts.overfit:
-            self.opts.trainer.epochs = 8
-            self.opts.databunch.dlo.batch_size = 4
+            self.opts.trainer.epochs = 64
+            self.opts.databunch.dlo.batch_size = 1
             self.opts.databunch.train_dso.setting = 'eval'
             self.opts.databunch.dev_dso.meta_path = self.opts.databunch.train_dso.meta_path
             self.opts.databunch.test_dso.meta_path = self.opts.databunch.train_dso.meta_path
@@ -144,6 +140,7 @@ class BaseRunner(abc.ABC):
             self.opts.databunch.dlo.batch_size = 2
             self.opts.trainer.epochs = 4
             self.opts.databunch.dlo.num_workers = 0
+            self.opts.databunch.dlo.timeout = 0
 
             self.opts.databunch.train_dso.keep = self.opts.databunch.dlo.batch_size * self.world_size * 2
             self.opts.databunch.dev_dso.keep = self.opts.databunch.dlo.batch_size * self.world_size * 2
@@ -157,14 +154,13 @@ class BaseRunner(abc.ABC):
     def _init_model(self) -> typ.Tuple[nn.Module, str]:
         """Initialize, resume model."""
         num_segments = self.opts.databunch.so.num_segments
-        segment_size = self.opts.databunch.so.segment_size
-        self.opts.model.opts.time_steps = num_segments * segment_size
+        self.opts.model.opts.time_steps = num_segments
         opts = dc.asdict(copy.deepcopy(self.opts.model.opts))
         del opts['batch_size']
         model = sm.Models[self.opts.model.arch].value(**opts).to(self.device)
 
         if self.opts.resume:
-            latest_models = list(glob.glob((ct.WORK_ROOT / self.opts.run_dir / 'latest_model_*.pth').as_posix()))
+            latest_models = list(glob.glob(str(ct.WORK_ROOT / self.opts.run_dir / 'ckpt' / 'latest_model_*.pth')))
             if len(latest_models) > 1:
                 raise ValueError('More than one latest model available. Remove old versions.')
             model_path = latest_models.pop()
@@ -196,7 +192,7 @@ class BaseRunner(abc.ABC):
         optimizer = th.optim.AdamW(self.model.parameters(), **opts)
 
         if self.opts.resume:
-            optimizer_path = glob.glob((ct.WORK_ROOT / self.opts.run_dir / 'latest_optimizer_*').as_posix()).pop()
+            optimizer_path = glob.glob(str(ct.WORK_ROOT / self.opts.run_dir / 'ckpt' / 'latest_optimizer_*')).pop()
             print(f'Loading optimizer from {optimizer_path}...')
             optimizer.load_state_dict(th.load(optimizer_path, map_location=self.device))
 
@@ -210,7 +206,8 @@ class BaseRunner(abc.ABC):
                                                       gamma=self.opts.trainer.lr_gamma)
 
         if self.opts.resume:
-            lr_scheduler_path = glob.glob((ct.WORK_ROOT / self.opts.run_dir / 'latest_lr_scheduler_*').as_posix()).pop()
+            lr_scheduler_path = glob.glob(
+                str(ct.WORK_ROOT / self.opts.run_dir / 'ckpt' / 'latest_lr_scheduler_*')).pop()
             print(f'Loading LR scheduler from {lr_scheduler_path}...')
             lr_scheduler.load_state_dict(th.load(lr_scheduler_path, map_location=self.device))
 
@@ -233,7 +230,7 @@ class BaseRunner(abc.ABC):
         self.trainer.add_event_handler(ie.Events.STARTED, self._resume_trainer_state)
         self.trainer.add_event_handler(ie.Events.EPOCH_STARTED, self._set_distributed_sampler_seed)
         self.trainer.add_event_handler(ie.Events.ITERATION_COMPLETED, self._aggregate_metrics)
-        self.logger.attach_train_pbar(self.trainer)  # ON ITERATION_COMPLETED
+        self.logger.attach_pbar(self.trainer)  # ON ITERATION_COMPLETED
         self.logger.init_handlers(self.trainer, self.evaluator, self.model, self.optimizer)  # ON EPOCH_COMPLETED
         self.trainer.add_event_handler(ie.Events.EPOCH_COMPLETED, self._evaluate)
         self.trainer.add_event_handler(ie.Events.COMPLETED, self._end_run)
@@ -268,8 +265,8 @@ class BaseRunner(abc.ABC):
         best_ckpt = ih.ModelCheckpoint(dirname=ckpt_dir.as_posix(), filename_prefix='best',
                                        n_saved=1, require_empty=require_empty,
                                        save_as_state_dict=True,
-                                       score_function=self._negative_val_loss,
-                                       score_name='loss')
+                                       score_function=self._dev_acc_1,
+                                       score_name='dev_acc_1')
         latest_ckpt = ih.ModelCheckpoint(dirname=ckpt_dir.as_posix(),
                                          filename_prefix='latest',
                                          n_saved=1, require_empty=require_empty,
@@ -284,8 +281,8 @@ class BaseRunner(abc.ABC):
     def _save_trainer_state(self, _engine: ie.Engine):
         with open((ct.WORK_ROOT / self.opts.run_dir / 'ckpt' / 'trainer_state.json').as_posix(), 'w') as file:
             state = {
-                'iteration': _engine.state.iteration,
-                'epoch': _engine.state.epoch,
+                'iteration': self.trainer.state.iteration,
+                'epoch': self.trainer.state.epoch,
             }
             json.dump(state, file, indent=True)
 
@@ -293,8 +290,8 @@ class BaseRunner(abc.ABC):
         """Event handler for start of training. Resume trainer state."""
         if self.opts.resume:
             print(
-                f'Loading trainer state from {(ct.WORK_ROOT / self.opts.run_dir / "trainer_state.json").as_posix()}')
-            with open((ct.WORK_ROOT / self.opts.run_dir / 'trainer_state.json').as_posix(), 'r') as file:
+                f'Loading trainer state from {str(ct.WORK_ROOT / self.opts.run_dir / "ckpt" / "trainer_state.json")}')
+            with open(str(ct.WORK_ROOT / self.opts.run_dir / 'ckpt' / 'trainer_state.json'), 'r') as file:
                 state = json.load(file)
                 self.trainer.state.iteration = state['iteration']
                 self.trainer.state.epoch = state['epoch']
@@ -335,9 +332,11 @@ class BaseRunner(abc.ABC):
 
         _engine.state.metrics.update(zip(local_names, values.detach().cpu().numpy()))
 
-    def _negative_val_loss(self, _: ie.Engine) -> float:
-        """Return negative CE."""
-        return -self.evaluator.state.metrics['ce_loss']
+    def _dev_acc_1(self, _: ie.Engine):
+        return self.evaluator.state.metrics['acc_1']
+
+    def _neg_dev_total_loss(self, _: ie.Engine):
+        return -self.evaluator.state.metrics['total_loss']
 
     def run(self) -> None:
         """Start a run."""

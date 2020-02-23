@@ -9,7 +9,6 @@ import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 import torch.optim.lr_scheduler as lrs
-import torch.utils.tensorboard as ttb
 import tqdm
 
 import constants as ct
@@ -39,29 +38,25 @@ class ExperimentLogger(object):
         self.main_proc = main_proc
         self.train_metrics = sm.Metrics[train_metrics].value
         self.dev_metrics = sm.Metrics[dev_metrics].value
-        self.train_pbar = self._init_train_pbar()
-
+        self.pbar = self._init_pbar()
         self.tb_logger = self._init_tb_logger()
-        self.summary = self._init_summary_writer()
         self.metrics = {}
 
     @_Decorator.main_proc_only
-    def _init_train_pbar(self) -> t.Optional[tql.ProgressBar]:
-        train_pbar = tql.ProgressBar(persist=True)
+    def _init_pbar(self) -> t.Optional[tql.ProgressBar]:
+        train_pbar = tql.ProgressBar(persist=True, dynamic_ncols=True)
 
         return train_pbar
 
     @_Decorator.main_proc_only
     def _init_tb_logger(self) -> t.Optional[tbl.TensorboardLogger]:
-        return tbl.TensorboardLogger(log_dir=(ct.WORK_ROOT / self.opts.run_dir / 'logs').as_posix())
+        return tbl.TensorboardLogger(
+            log_dir=(ct.WORK_ROOT / self.opts.run_dir / 'logs').as_posix(),
+        )
 
     @_Decorator.main_proc_only
-    def _init_summary_writer(self) -> t.Optional[ttb.SummaryWriter]:
-        return ttb.SummaryWriter((ct.WORK_ROOT / self.opts.run_dir / 'logs').as_posix(), flush_secs=60)
-
-    @_Decorator.main_proc_only
-    def attach_train_pbar(self, engine: ie.Engine):
-        self.train_pbar.attach(engine, 'all')
+    def attach_pbar(self, engine: ie.Engine):
+        self.pbar.attach(engine, 'all')
 
     @_Decorator.main_proc_only
     def init_handlers(self, trainer: ie.Engine, evaluator: ie.Engine, model: nn.Module, optimizer):
@@ -75,7 +70,6 @@ class ExperimentLogger(object):
                                   optimizer,
                                   tag='training'),
                               event_name=ie.Events.ITERATION_COMPLETED)
-
         self.tb_logger.attach(trainer,
                               log_handler=tbl.OutputHandler(tag='train',
                                                             metric_names='all'),
@@ -101,18 +95,33 @@ class ExperimentLogger(object):
                                   event_name=ie.Events.EPOCH_COMPLETED)
 
     @_Decorator.main_proc_only
-    def init_log(self, data_bunch: db.VideoDataBunch,
-                 model: nn.Module,
-                 criterion: nn.Module,
-                 optimizer: optim.Adam,
-                 lr_scheduler: lrs.MultiStepLR):
-        self.log(f'Initializing run {self.opts.name}.')
-        self.log(str(data_bunch))
-        self.log(str(model))
-        self.log(str(criterion))
-        self.log(str(optimizer))
-        self.log(str(lr_scheduler.state_dict()))
-        self.log(f'Model size: {self.opts.model.size}')
+    def init_log(self,
+                 data_bunch: db.VideoDataBunch = None,
+                 model: nn.Module = None,
+                 criterion: nn.Module = None,
+                 optimizer: optim.Adam = None,
+                 lr_scheduler: lrs.MultiStepLR = None):
+        self.print_options()
+        if self.opts.debug:
+            self.log(str(data_bunch))
+            self.log(str(model))
+            self.log(str(criterion))
+            self.log(str(optimizer))
+            self.log(str(lr_scheduler.state_dict()))
+
+    def print_options(self):
+        def inner(opts: t.Any, prefix: str = ''):
+            for name, value in opts.items():
+                if isinstance(value, dict):
+                    p = prefix + f'.{name}' if prefix else f'{name}'
+                    inner(value, p)
+                else:
+                    p = prefix + f'.{name}' if prefix else f'{name}'
+                    self.log(f'{p:<50s}{str(value):>50s}')
+
+        self.log(f'{"Field":<50s}{"Value":>50s}')
+        self.log(f'{"=" * 49:<50s}{"=" * 49:>50s}')
+        inner(dc.asdict(self.opts))
 
     @_Decorator.main_proc_only
     def log_metrics(self, metrics: t.Dict[str, float]):
@@ -151,9 +160,9 @@ class ExperimentLogger(object):
     def persist_experiment(self):
         hparams = hp.flatten_dict(dc.asdict(self.opts))
         metrics = {f'{self.METRIC_TAG}/{k}': v for k, v in self.metrics.items()}
-        self.summary.add_hparams(hparams, metrics)
+        self.tb_logger.writer.add_hparams(hparams, metrics)
 
     @_Decorator.main_proc_only
     def close(self):
-        self.train_pbar.close()
+        self.pbar.close()
         self.tb_logger.close()

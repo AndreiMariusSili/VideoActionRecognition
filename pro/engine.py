@@ -55,7 +55,7 @@ def create_cls_evaluator(model, metrics=None, device=th.device('cpu'), non_block
 
 
 def create_ae_trainer(model, optimizer, crt, metrics=None, device=th.device('cpu'), non_blocking=True) -> ie.Engine:
-    """Create autoencoder trainer."""
+    """Create auto-encoder trainer."""
     if device:
         model.to(device)
 
@@ -66,8 +66,9 @@ def create_ae_trainer(model, optimizer, crt, metrics=None, device=th.device('cpu
 
         _recon, _pred, _temporal_embeds, _class_embed = model(x)
 
-        ce, mse = crt(_recon, _pred, x, y)
-        (ce + mse).backward()
+        ce, l1 = crt(_recon, _pred, x, y)
+        (ce + l1).backward()
+
         optimizer.step()
 
         return (
@@ -78,7 +79,7 @@ def create_ae_trainer(model, optimizer, crt, metrics=None, device=th.device('cpu
             x.detach(),
             y.detach(),
             ce.item(),
-            mse.item()
+            l1.item()
         )
 
     _engine = ie.Engine(_update)
@@ -90,7 +91,7 @@ def create_ae_trainer(model, optimizer, crt, metrics=None, device=th.device('cpu
 
 
 def create_ae_evaluator(model, metrics=None, device=th.device('cpu'), non_blocking=True) -> ie.Engine:
-    """Create autoencoder evaluator."""
+    """Create auto-encoder evaluator."""
     if device:
         model.to(device)
 
@@ -110,7 +111,7 @@ def create_ae_evaluator(model, metrics=None, device=th.device('cpu'), non_blocki
 
 
 def create_vae_trainer(model, optimizer, crt, metrics=None, device=th.device('cpu'), non_blocking=True) -> ie.Engine:
-    """Create variational autoencoder trainer."""
+    """Create variational auto-encoder trainer."""
     if device:
         model.to(device)
 
@@ -119,9 +120,9 @@ def create_vae_trainer(model, optimizer, crt, metrics=None, device=th.device('cp
         optimizer.zero_grad()
         x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
         _recon, _pred, _temporal_latents, _class_latent, _mean, _var, _ = model(x, num_samples=1)
-        ce, mse, kld = crt(_recon, _pred, x, y, _mean, _var)
+        ce, l1, kld = crt(_recon, _pred, x, y, _mean, _var)
 
-        (ce + mse + crt.kld_factor * kld).backward()
+        (ce + l1 + crt.kld_factor * kld).backward()
         optimizer.step()
 
         return (
@@ -134,7 +135,7 @@ def create_vae_trainer(model, optimizer, crt, metrics=None, device=th.device('cp
             x.detach(),
             y.detach(),
             ce.item(),
-            mse.item(),
+            l1.item(),
             kld.item(),
             crt.kld_factor
         )
@@ -148,7 +149,7 @@ def create_vae_trainer(model, optimizer, crt, metrics=None, device=th.device('cp
 
 
 def create_vae_evaluator(model, metrics=None, device=None, num_samples: int = None, non_blocking=True) -> ie.Engine:
-    """Create variational autoencoder evaluator."""
+    """Create variational auto-encoder evaluator."""
     if device:
         model.to(device)
 

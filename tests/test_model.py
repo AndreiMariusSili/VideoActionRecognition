@@ -1,4 +1,5 @@
 import dataclasses as dc
+import timeit
 
 import pandas as pd
 import pytest
@@ -18,16 +19,16 @@ CLASS_EMBED_PLANES = 1024
 NUM_CLASSES = 51
 VAE_TEST_NUM_SAMPLES = 3
 CLASS_ARGS = [
-    # ('tadn_class_small', 4), ('tarn_class_small', 4),
-    # ('tadn_class_large', 16), ('tarn_class_large', 16),
-    ('i3d_class_small', 4), ('i3d_class_large', 16),
+    ('tadn_class_4', 4), ('tadn_class_8', 8),
+    ('tarn_class_4', 4), ('tarn_class_8', 8),
+    ('i3d_class_4', 4), ('i3d_class_8', 8),
 ]
 AE_ARGS = [
-    # ('tarn_ae_small', 4), ('tarn_ae_large', 16),
+    ('tarn_ae_small', 4), ('tarn_ae_large', 16),
     ('i3d_ae_small', 4), ('i3d_ae_large', 16)
 ]
 VAE_ARGS = [
-    # ('tarn_vae_small', 4), ('tarn_vae_large', 16),
+    ('tarn_vae_small', 4), ('tarn_vae_large', 16),
     ('i3d_vae_small', 4), ('i3d_vae_large', 16)
 ]
 
@@ -41,16 +42,25 @@ def _init_model(model_spec: str):
 
 
 @pytest.mark.parametrize(['model_spec', 'time_steps'], CLASS_ARGS)
+@th.no_grad()
 def test_class_model(model_spec: str, time_steps: int):
     print()
     model, opts = _init_model(model_spec)
+    model = model.to('cuda' if th.cuda.is_available() else 'cpu')
+    _in = th.randn(BATCH_SIZE, time_steps, C, H, W).to('cuda' if th.cuda.is_available() else 'cpu')
+    model.eval()
+    model(_in)
 
-    _in = th.randn(BATCH_SIZE, time_steps, C, H, W)
+    def time_func():
+        return model(_in)
+
+    time = timeit.timeit(time_func, number=100) / 100
     pred, temporal_embed, class_embed = model(_in)
 
     df = pd.DataFrame.from_dict({
         'model': [model.NAME],  # noqa
         'size': [f'{hp.count_parameters(model):,}'],
+        'inference_speed': [f'{time:.4f}'],
         'preds': [str(tuple(pred.shape))],
         'embeds': [str(tuple(class_embed.shape))],
     })
@@ -65,11 +75,13 @@ def test_class_model(model_spec: str, time_steps: int):
 
 
 @pytest.mark.parametrize(['model_spec', 'time_steps'], AE_ARGS)
+@th.no_grad()
 def test_ae_model(model_spec: str, time_steps: int):
     print()
     model, opts = _init_model(model_spec)
+    model = model.to('cuda' if th.cuda.is_available() else 'cpu')
+    _in = th.randn(BATCH_SIZE, time_steps, C, H, W).to('cuda' if th.cuda.is_available() else 'cpu')
 
-    _in = th.randn(BATCH_SIZE, time_steps, C, H, W)
     recon, pred, temporal_embeds, class_embed = model(_in)
 
     df = pd.DataFrame.from_dict({
@@ -91,11 +103,13 @@ def test_ae_model(model_spec: str, time_steps: int):
 
 
 @pytest.mark.parametrize(['model_spec', 'time_steps'], VAE_ARGS)
+@th.no_grad()
 def test_vae_model(model_spec: str, time_steps: int):
     print()
     model, opts = _init_model(model_spec)
+    model = model.to('cuda' if th.cuda.is_available() else 'cpu')
+    _in = th.randn(BATCH_SIZE, time_steps, C, H, W).to('cuda' if th.cuda.is_available() else 'cpu')
 
-    _in = th.randn(BATCH_SIZE, time_steps, C, H, W)
     model.train()
     out = model(_in, 1)
     train_recon, train_pred, train_temp_embed, train_class_embed, train_mean, train_variance, train_vote = out

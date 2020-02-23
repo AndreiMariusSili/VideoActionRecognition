@@ -28,13 +28,13 @@ class AECriterion(nn.Module):
         super(AECriterion, self).__init__()
 
         self.ce = nn.CrossEntropyLoss(reduction='mean')
-        self.bce = nn.BCEWithLogitsLoss(reduction='mean')
+        self.l1 = nn.L1Loss(reduction='mean')
 
     def forward(self, _recon: th.Tensor, _pred: th.Tensor, _in: th.Tensor, _class: th.Tensor) -> AE_CRITERION_FORWARD:
         ce = self.ce(_pred, _class)
-        bce = self.bce(_recon, _in)
+        l1 = self.l1(_recon, _in)
 
-        return ce, bce
+        return ce, l1
 
 
 class VAECriterion(nn.Module):
@@ -46,7 +46,7 @@ class VAECriterion(nn.Module):
         self.kld_factor = 0.0
 
         self.ce = nn.CrossEntropyLoss(reduction='mean')
-        self.bce = nn.BCEWithLogitsLoss(reduction='mean')
+        self.l1 = nn.L1Loss(reduction='mean')
         self.kld = KLDivergence()
 
     def forward(self, _recon: th.Tensor, _pred: th.Tensor, _in: th.Tensor, _class: th.Tensor,
@@ -60,7 +60,7 @@ class VAECriterion(nn.Module):
         _recon = _recon.reshape(b * s, t, c, h, w)
 
         ce = self.ce(_pred, _class)
-        bce = self.bce(_recon, _in)
+        l1 = self.l1(_recon, _in)
         kld = self.kld(_mean, _var)
 
-        return ce, bce, kld
+        return ce, l1, kld

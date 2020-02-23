@@ -43,13 +43,13 @@ class TemporalResNetEncoder(nn.Module):
     def __init__(self, time_steps: int, in_planes: int):
         super(TemporalResNetEncoder, self).__init__()
 
-        self.in_planes = in_planes
         self.time_steps = time_steps
+        self.in_planes = in_planes
 
         self.temporal = nn.ModuleList()
         for _ in range(self.time_steps):
-            layer = TemporalResidualBlock(self.in_planes, self.in_planes)
-            self.temporal.append(layer)  # noqa
+            layer = TemporalResidualBlock(self.in_planes)
+            self.temporal.append(layer)
 
     def forward(self, _in: th.Tensor) -> tp.Tuple[th.Tensor, th.Tensor]:
         _outs = []

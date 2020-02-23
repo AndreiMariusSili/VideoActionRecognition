@@ -12,7 +12,7 @@ import models as mo
 # AE HELPERS
 ########################################################################################################################
 train_ae_ce_loss = im.RunningAverage(output_transform=lambda x: x[-2])
-train_ae_bce_loss = im.RunningAverage(output_transform=lambda x: x[-1])
+train_ae_l1_loss = im.RunningAverage(output_transform=lambda x: x[-1])
 train_ae_total_loss = im.RunningAverage(output_transform=lambda x: sum([x[-2], x[-1]]))
 eval_ae_loss_metric = cm.AELoss(cc.AECriterion())
 eval_ae_total_loss = im.MetricsLambda(lambda x: sum(x), eval_ae_loss_metric)
@@ -21,7 +21,7 @@ eval_ae_total_loss = im.MetricsLambda(lambda x: sum(x), eval_ae_loss_metric)
 # VAE HELPERS
 ########################################################################################################################
 train_vae_ce_loss = im.RunningAverage(output_transform=lambda x: x[-4])
-train_vae_bce_loss = im.RunningAverage(output_transform=lambda x: x[-3])
+train_vae_l1_loss = im.RunningAverage(output_transform=lambda x: x[-3])
 train_vae_kld_loss = im.RunningAverage(output_transform=lambda x: x[-2])
 train_vae_kld_factor = im.RunningAverage(output_transform=lambda x: x[-1])
 train_vae_total_loss = im.RunningAverage(output_transform=lambda x: sum([x[-4], x[-3], x[-2]]))
@@ -58,13 +58,14 @@ class Metrics(enum.Enum):
     train_class_metrics: t.Dict[str, im.Metric] = {
         'acc_1': im.RunningAverage(im.Accuracy(output_transform=lambda x: x[1:3])),
         'acc_5': im.RunningAverage(im.TopKCategoricalAccuracy(k=5, output_transform=lambda x: x[1:3])),
-        'ce_loss': im.RunningAverage(output_transform=lambda x: x[0])
+        'ce_loss': im.RunningAverage(output_transform=lambda x: x[0]),
+        'total_loss': im.RunningAverage(output_transform=lambda x: x[0])
     }
     train_ae_metrics: t.Dict[str, im.Metric] = {
         'acc_1': im.RunningAverage(im.Accuracy(output_transform=lambda x: (x[1], x[5]))),
         'acc_5': im.RunningAverage(im.TopKCategoricalAccuracy(k=5, output_transform=lambda x: (x[1], x[5]))),
         'ce_loss': train_ae_ce_loss,
-        'bce_loss': train_ae_bce_loss,
+        'l1_loss': train_ae_l1_loss,
         'total_loss': train_ae_total_loss
     }
     train_vae_metrics: t.Dict[str, im.Metric] = {
@@ -72,7 +73,7 @@ class Metrics(enum.Enum):
         'acc_5': im.RunningAverage(
             im.TopKCategoricalAccuracy(k=5, output_transform=lambda x: (x[1].squeeze(dim=1), x[7]))),
         'ce_loss': train_vae_ce_loss,
-        'bce_loss': train_vae_bce_loss,
+        'l1_loss': train_vae_l1_loss,
         'kld_loss': train_vae_kld_loss,
         'total_loss': train_vae_total_loss,
         'kld_factor': train_vae_kld_factor,
@@ -80,20 +81,21 @@ class Metrics(enum.Enum):
     eval_class_metrics = {
         'acc_1': im.Accuracy(output_transform=lambda x: x[0:2]),
         'acc_5': im.TopKCategoricalAccuracy(k=5, output_transform=lambda x: x[0:2]),
-        'ce_loss': im.Loss(nn.CrossEntropyLoss(), output_transform=lambda x: x[0:2])
+        'ce_loss': im.Loss(nn.CrossEntropyLoss(), output_transform=lambda x: x[0:2]),
+        'total_loss': im.Loss(nn.CrossEntropyLoss(), output_transform=lambda x: x[0:2])
     }
     eval_ae_metrics = {
         'acc_1': im.Accuracy(output_transform=lambda x: (x[1], x[5])),
         'acc_5': im.TopKCategoricalAccuracy(k=5, output_transform=lambda x: (x[1], x[5])),
         'ce_loss': eval_ae_loss_metric[0],
-        'bce_loss': eval_ae_loss_metric[1],
+        'l1_loss': eval_ae_loss_metric[1],
         'total_loss': eval_ae_total_loss,
     }
     eval_vae_metrics = {
         'acc_1': im.Accuracy(output_transform=lambda x: (x[-1], x[-2])),
         'acc_5': im.TopKCategoricalAccuracy(k=5, output_transform=lambda x: (x[-1], x[-2])),
         'ce_loss': eval_vae_loss_metric[0],
-        'bce_loss': eval_vae_loss_metric[1],
+        'l1_loss': eval_vae_loss_metric[1],
         'kld_loss': eval_vae_loss_metric[2],
         'total_loss': eval_vae_total_loss,
     }

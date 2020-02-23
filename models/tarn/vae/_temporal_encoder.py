@@ -32,8 +32,6 @@ class VarTemporalResidualBlock(nn.Module):
 
         self.rsample = models.common.ReparameterizedSample()
 
-        self.stride = stride
-
     def forward(self, in_spatial: th.Tensor, in_temporal: th.Tensor, num_samples: int) -> TEMPORAL_BLOCK_FORWARD:
         b, s, c, h, w = in_spatial.shape
 
@@ -76,13 +74,13 @@ class VarTemporalResNetEncoder(nn.Module):
     def __init__(self, time_steps: int, in_planes: int):
         super(VarTemporalResNetEncoder, self).__init__()
 
-        self.in_planes = in_planes
         self.time_steps = time_steps
+        self.in_planes = in_planes
 
         self.temporal = nn.ModuleList()
         for _ in range(self.time_steps):
             layer = VarTemporalResidualBlock(self.in_planes)
-            self.temporal.append(layer)  # noqa
+            self.temporal.append(layer)
 
     def forward(self, _in: th.Tensor, num_samples: int) -> TEMPORAL_ENCODER_FORWARD:
         b, s, t, c, h, w = _in.shape

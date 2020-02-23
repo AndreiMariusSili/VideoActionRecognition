@@ -22,7 +22,7 @@ source "${MT_SOURCE}/scripts/lisa/common/setup.sh" "gpu_shared"
 echo "=================================================================================================================="
 echo "Running experiment..."
 echo "=================================================================================================================="
-python "${MT_SOURCE}/main.py" "run_experiment" "--opts" "dataset:${DATASET}${SPLIT},cut:${CUT},frames:${FRAMES},model:${MODEL}"
+python "${MT_SOURCE}/main.py" "run_experiment" "--opts" "dataset:${DATASET}${SPLIT}f,cut:${CUT},frames:${FRAMES},model:${MODEL}"
 
 echo "=================================================================================================================="
 echo "Cleaning up..."

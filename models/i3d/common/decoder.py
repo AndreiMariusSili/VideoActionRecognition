@@ -70,11 +70,8 @@ class I3DDecoder(nn.Module):
 
     def forward(self, _in: th.Tensor) -> th.tensor:
         _out = _in
-        # print(f'{"decoder input":20s}:\t{_out.shape}')
         for name, module in list(self.named_children())[:-1]:
             _out = module(_out)
-            # print(f'{name:20s}:\t{_out.shape}')
-        if self.training:
-            _out = self.sigmoid(_out)
+        _out = self.sigmoid(_out)
 
         return _out.transpose(1, 2)

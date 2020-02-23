@@ -2,6 +2,9 @@ import pathlib as pt
 import shutil
 import typing as t
 
+import numpy as np
+import pandas as pd
+
 import constants as ct
 import env
 import helpers as hp
@@ -49,6 +52,18 @@ def select_top_classes(num_classes: int):
         shutil.move(class_dir.as_posix(), (EXCLUDED_WEBM_DIR / class_dir.name).as_posix())
         train_meta = train_meta[train_meta['label'] != class_dir.name]
         valid_meta = valid_meta[valid_meta['label'] != class_dir.name]
+    lids = train_meta['lid'].unique()
+    lids = pd.DataFrame(
+        index=lids,
+        data=np.arange(len(lids)),
+        columns=['new_lid']
+    )
+    train_meta = train_meta.join(lids, on='lid')
+    train_meta['lid'] = train_meta['new_lid']
+    train_meta = train_meta.drop(labels='new_lid', axis=1)
+    valid_meta = valid_meta.join(lids, on='lid')
+    valid_meta['lid'] = valid_meta['new_lid']
+    valid_meta = valid_meta.drop(labels='new_lid', axis=1)
 
     shutil.copy(str(ct.WORK_ROOT / ct.SMTH_META_TRAIN_1), str(EXCLUDED_META1_DIR / ct.SMTH_META_TRAIN_1.name))
     shutil.copy(str(ct.WORK_ROOT / ct.SMTH_META_VALID_1), str(EXCLUDED_META1_DIR / ct.SMTH_META_VALID_1.name))

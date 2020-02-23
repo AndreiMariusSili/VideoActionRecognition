@@ -44,15 +44,22 @@ class Video(object):
 
     def _random_subsample(self) -> np.ndarray:
         segments = [segment for segment in np.array_split(self.cut_locs, self.num_segments) if segment.size > 0]
+        segments = self._pad_with_last_segment(segments)
         sample = [np.random.choice(segment, replace=False) for segment in segments]
 
         return np.array(sample)
 
     def _fixed_subsample(self) -> np.ndarray:
         segments = [segment for segment in np.array_split(self.cut_locs, self.num_segments) if segment.size > 0]
+        segments = self._pad_with_last_segment(segments)
         sample = [segment[len(segment) // 2] for segment in segments]
 
         return np.array(sample)
+
+    def _pad_with_last_segment(self, segments: t.List[np.ndarray]) -> t.List[np.ndarray]:
+        segment_padding = self.num_segments - len(segments)
+
+        return segments + [segments[-1]] * segment_padding
 
     def _image_data(self) -> t.List[np.ndarray]:
         dir_path = glob.escape((self.root_path / self.meta.image_path).as_posix())

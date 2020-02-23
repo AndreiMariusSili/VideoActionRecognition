@@ -58,7 +58,7 @@ class SpatialResNetEncoder(nn.Module):
             self.layers.append(self._make_layer(out_plane, 2, stride=2))  # noqa
         self.bottleneck = nn.Sequential(
             tc.conv1x1(self.in_planes, self.bottleneck_planes),
-            nn.BatchNorm2d(self.bottleneck_planes, eps=0.001),
+            nn.BatchNorm2d(self.bottleneck_planes),
             nn.ReLU(inplace=True),
         )
 

@@ -17,5 +17,4 @@ class AEVisualiser(_base.BaseVisualiser):
     def recons(self, video: dv.Video) -> t.List[th.Tensor]:
         video_data = th.tensor(video.data[np.newaxis, :, :, :], dtype=th.float32, device=self.device)
         recon, *_ = self.model(video_data)
-
         return [recon.squeeze()]

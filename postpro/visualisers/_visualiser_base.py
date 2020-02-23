@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch as th
-import torch.cuda as cuda
 import torch.nn as nn
 import torch.nn.functional as nnfunc
 
@@ -27,30 +26,46 @@ import options.experiment_options as eo
 import specs.maps as sm
 
 
-def plot_frames(frames: t.List[np.ndarray], titles: t.List[str] = None, cols: int = 1) -> plt.Figure:
+def plot_frames(frames: t.List[np.ndarray], titles: t.List[str] = None, cols: int = 1,
+                group: bool = True) -> t.Union[plt.Figure, t.List[plt.Figure]]:
     """Display a list of images in a single figure with matplotlib.
 
     :param frames: List of np.arrays compatible with plt.imshow.
     :param titles: List of titles corresponding to each image. Must have the same length as images.
     :param cols: Number of columns in figure (number of rows is set to np.ceil(n_images/float(cols))).
+    :param group: Whether to group frames in a single subplot or plot separately.
     :return: The plt Figure object.
     """
     assert ((titles is None) or (len(frames) == len(titles)))
     num_frames = len(frames)
     if titles is None:
         titles = [f'Frame {i:2d}' % i for i in range(1, num_frames + 1)]
-    fig: plt.Figure = plt.figure()
-    for n, (image, title) in enumerate(zip(frames, titles)):
-        a = fig.add_subplot(np.ceil(num_frames / float(cols)), cols, n + 1)
-        plt.imshow(image)
-        a.set_title(title)
-    fig.set_size_inches(np.array(fig.get_size_inches()) * num_frames)
-    [ax.get_xaxis().set_visible(False) for ax in fig.axes]
-    [ax.get_yaxis().set_visible(False) for ax in fig.axes]
-    fig.tight_layout()
-    fig.show()
+    if group:
+        fig: plt.Figure = plt.figure()
+        for n, (image, title) in enumerate(zip(frames, titles)):
+            a = fig.add_subplot(np.ceil(num_frames / float(cols)), cols, n + 1)
+            plt.imshow(image)
+            a.set_title(title)
+        fig.set_size_inches(np.array(fig.get_size_inches()) * num_frames)
+        [ax.get_xaxis().set_visible(False) for ax in fig.axes]
+        [ax.get_yaxis().set_visible(False) for ax in fig.axes]
+        fig.tight_layout()
+        fig.show()
 
-    return fig
+        return fig
+    else:
+        figs = []
+        for n, (image, title) in enumerate(zip(frames, titles)):
+            fig: plt.Figure = plt.figure()
+            [ax.get_xaxis().set_visible(False) for ax in fig.axes]
+            [ax.get_yaxis().set_visible(False) for ax in fig.axes]
+            plt.imshow(image)
+            plt.axis('off')
+            fig.tight_layout()
+            fig.show()
+            figs.append(fig)
+
+        return figs
 
 
 def plot_class_heat_map(class_values: np.ndarray, title: str = None) -> plt.Figure:
@@ -81,7 +96,7 @@ class BaseVisualiser(abc.ABC):
         if self.opts:
             self.run_viz_dir = ct.WORK_ROOT / self.opts.run_dir / 'figures'
             self.run_viz_dir.mkdir(exist_ok=True)
-            self.device = th.device(f'cuda:0' if cuda.is_available() else f'cpu')
+            self.device = th.device(f'cpu')
             self.data_bunch, self.opts.model.opts.num_classes = self._init_databunch()
             self.best_ckpt = self._get_best_ckpt()
             self.model = self._init_model()
@@ -106,7 +121,7 @@ class BaseVisualiser(abc.ABC):
         model = sm.Models[self.opts.model.arch].value(**opts).to(self.device)
         model.load_state_dict(th.load(self.best_ckpt, map_location=self.device))
 
-        model.eval()
+        model = model.eval()
 
         return model
 
@@ -171,32 +186,43 @@ class BaseVisualiser(abc.ABC):
 
         return figs
 
-    def plot_frames_target(self, split: str, dataset_idx: int, save: bool = True) -> t.List[plt.Figure]:
+    def plot_frames_target(self, split: str, dataset_idx: int, save: bool = True, group: bool = True) -> t.List[
+        plt.Figure]:
         dataset = self.select_dataset(split)
         video, label = self.get_data_point(split, dataset_idx)
 
-        length = dataset.so.num_segments * dataset.so.segment_size
+        length = dataset.so.num_segments
         frames = self.frames2video(video.data)
         titles = [f't={_t}' for _t in range(length)]
 
-        fig = plot_frames(frames, titles, len(frames))
-        self.save_fig(fig, f'frames_target_{split}_{dataset_idx}.jpg', save)
+        fig_or_figs = plot_frames(frames, titles, len(frames), group)
+        if isinstance(fig_or_figs, plt.Figure):
+            self.save_fig(fig_or_figs, f'frames_target_{split}_{dataset_idx}.jpg', save)
+            return [fig_or_figs]
+        elif isinstance(fig_or_figs, list):
+            for i, fig in enumerate(fig_or_figs):
+                self.save_fig(fig, f'frames_target_{split}_{dataset_idx}_{i}.jpg', save)
+            return fig_or_figs
 
-        return [fig]
-
-    def plot_frames_recon(self, split: str, dataset_idx: int, save: bool = True) -> t.List[plt.Figure]:
+    def plot_frames_recon(self, split: str, dataset_idx: int, save: bool = True, group: bool = True) -> t.List[
+        plt.Figure]:
         dataset = self.select_dataset(split)
         video, label = self.get_data_point(split, dataset_idx)
 
         figs = []
-        length = dataset.so.num_segments * dataset.so.segment_size
+        length = dataset.so.num_segments
         titles = [f't={_t}' for _t in range(length)]
         recons = self.recons(video)
         for sample_idx, recon in enumerate(recons):
+            recon = recon.cpu().numpy()
             recon = self.frames2video(recon)
-            fig = plot_frames(recon, titles, len(recon))
-            self.save_fig(fig, f'frames_recon_{split}_{dataset_idx}_{sample_idx}.jpg', save)
-            figs.append(fig)
+            fig_or_figs = plot_frames(recon, titles, len(recon), group)
+            if isinstance(fig_or_figs, plt.Figure):
+                self.save_fig(fig_or_figs, f'frames_recon_{split}_{dataset_idx}_{sample_idx}.jpg', save)
+            elif isinstance(fig_or_figs, list):
+                for i, fig in enumerate(fig_or_figs):
+                    self.save_fig(fig, f'frames_recon_{split}_{dataset_idx}_{sample_idx}_{i}.jpg', save)
+            figs.append(fig_or_figs)
 
         return figs
 
@@ -205,14 +231,14 @@ class BaseVisualiser(abc.ABC):
         video, label = self.get_data_point(split, dataset_idx)
 
         figs = []
-        length = dataset.so.num_segments * dataset.so.segment_size
+        length = dataset.so.num_segments
         titles = [f't={_t}' for _t in range(length)]
         target = th.tensor(video.data, dtype=th.float32, device=self.device).unsqueeze(0)
         recons = self.recons(video)
         for sample_idx, recon in enumerate(recons):
             loss = nnfunc.binary_cross_entropy(recon.unsqueeze(0), target, reduction='none').squeeze()
             loss = (loss - th.min(loss)) / (th.max(loss) - th.min(loss))  # distribute to the full range [0, 1]
-            loss = self.frames2video(loss)
+            loss = self.frames2video(loss.numpy())
             fig = plot_frames(loss, titles, length)
             self.save_fig(fig, f'frames_loss_{split}_{dataset_idx}_{sample_idx}.jpg', save)
             figs.append(fig)
@@ -222,12 +248,13 @@ class BaseVisualiser(abc.ABC):
     def plot_class_embeds(self, split: str, save: bool = True) -> plt.Figure:
         dataset = self.select_dataset(split)
         ids = np.load(ct.WORK_ROOT / self.opts.run_dir / split / 'tsne_ids.npy')
-
         class_embeds = np.load(ct.WORK_ROOT / self.opts.run_dir / split / 'class_embeds_tsne.npy')
 
-        labels = dataset.meta.loc[ids, ['label']].values
+        labels = dataset.meta.reindex(ids)[['label']].values
         class_embeds = pd.DataFrame(np.concatenate([class_embeds, labels], axis=1), columns=['x1', 'x2', 'label'])
-        sns.scatterplot(x='x1', y='x2', hue='label', data=class_embeds)
+        labels = pd.unique(class_embeds['label'])[0:12]
+        class_embeds = class_embeds[class_embeds['label'].isin(labels)]
+        sns.scatterplot(x='x1', y='x2', hue='label', data=class_embeds, legend=False)
         plt.show()
         self.save_fig(plt.gcf(), f'class_embeds_{split}.jpg', save)
 
@@ -259,8 +286,14 @@ class BaseVisualiser(abc.ABC):
 
     def get_data_point(self, split: str, idx: int) -> t.Tuple[dv.Video, dl.Label]:
         dataset = self.select_dataset(split)
+        video, label = dataset[idx]
+        if isinstance(video.data, list):
+            for i in range(len(video.data)):
+                if isinstance(video.data[i], th.Tensor):
+                    video.data[i] = video.data[i].cpu().numpy()
+            video.data = np.stack(video.data, axis=0)
 
-        return dataset[idx]
+        return video, label
 
     def select_dataset(self, split: str) -> ds.VideoDataset:
         assert split in ['train', 'dev', 'test'], f'Unknown split: {split}.'
@@ -271,10 +304,7 @@ class BaseVisualiser(abc.ABC):
         else:
             return self.data_bunch.test_set
 
-    def frames2video(self, frames: t.Union[np.ndarray, th.Tensor]) -> t.List[np.ndarray]:  # noqa
-        if isinstance(frames, th.Tensor):
-            frames = frames.cpu().numpy()
-
+    def frames2video(self, frames: np.ndarray) -> t.List[np.ndarray]:  # noqa
         _t, c, h, w = frames.shape
         frames = np.transpose(frames, axes=(0, 2, 3, 1))
 

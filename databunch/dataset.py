@@ -4,7 +4,8 @@ import imgaug.augmenters as ia
 import numpy as np
 import pandas as pd
 import torch as th
-from torch.utils import data as thd
+import torch.utils.data as thd
+import torchvision.transforms.functional as F  # noqa
 
 import constants as ct
 import databunch.label as pil
@@ -21,10 +22,10 @@ def init_worker(_id: int):
 def collate(batch: [(piv.Video, pil.Label)]) -> (th.Tensor, th.Tensor, piv.Video, pil.Label):
     videos, labels = zip(*batch)
 
-    videos_data = np.stack([np.stack(video.data, axis=0) for video in videos], axis=0)
-    labels_data = np.array([label.data for label in labels])
+    videos_data = th.stack([th.stack(video.data, dim=0) for video in videos], dim=0)
+    labels_data = th.tensor([label.data for label in labels], dtype=th.int64)
 
-    return th.from_numpy(videos_data).to(dtype=th.float32) / 255, th.from_numpy(labels_data), videos, labels
+    return videos_data, labels_data, videos, labels
 
 
 class VideoDataset(thd.Dataset):
@@ -57,10 +58,8 @@ class VideoDataset(thd.Dataset):
                 ia.CropToFixedSize(224, 224),
                 ia.Fliplr(0.5),
                 ia.Flipud(0.5),
-                ia.ChannelShuffle(),
                 ia.Add((-25, 25)),
-                ia.AddToHueAndSaturation((-25, 25), per_channel=True),
-                ia.CoarseDropout(0.1, size_percent=0.1),
+                ia.AddToHueAndSaturation((-25, 25)),
             ])
         else:
             aug_seq = ia.Sequential([
@@ -70,10 +69,10 @@ class VideoDataset(thd.Dataset):
 
         return aug_seq
 
-    def aug(self, video_data: t.List[np.ndarray]) -> t.List[np.ndarray]:
+    def aug(self, video_data: t.List[np.ndarray]) -> t.List[th.Tensor]:
         det_aug_seq = self.aug_seq.to_deterministic()
 
-        return [det_aug_seq.augment_image(frame_data) for frame_data in video_data]
+        return [F.to_tensor(det_aug_seq.augment_image(frame_data)) for frame_data in video_data]
 
     def __getitem__(self, item: int) -> t.Tuple[piv.Video, pil.Label]:
         video_meta = pim.VideoMeta(**self.meta.iloc[item][pim.VideoMeta.fields].to_dict())

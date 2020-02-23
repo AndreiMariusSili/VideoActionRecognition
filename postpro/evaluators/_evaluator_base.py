@@ -42,8 +42,8 @@ class BaseEvaluator(abc.ABC):
             self.opts.trainer.metrics,
             self.opts.evaluator.metrics
         )
-        self.logger.attach_train_pbar(self.train_evaluator)
-        print(self.opts)
+        self.logger.attach_pbar(self.train_evaluator)
+        self.logger.init_log()
 
     def _init_distributed(self) -> t.Tuple[int, int]:
         """Create distributed setup."""
@@ -177,7 +177,7 @@ class BaseEvaluator(abc.ABC):
 
         sample_ids = ids[sample]
         for name, out in outs.items():
-            if '_embeds' in name:
+            if 'class_embeds' in name:
                 sample_embeds = out[sample]
                 sample_tsne = self._get_projections(name, sample_embeds)
                 outs_proj[f'{name}_tsne'] = sample_tsne

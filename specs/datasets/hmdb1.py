@@ -44,6 +44,18 @@ dbo_4 = do.DataBunch(
     dev_dso=dev_dso,
     test_dso=test_dso,
 )
+dbo_8 = do.DataBunch(
+    shape='volume',
+    cut=None,
+    frame_size=224,
+    stats_path=ct.HMDB_STATS_MERGED_1,
+    distributed=False,
+    dlo=dc.dlo,
+    so=dc.so_8,
+    train_dso=train_dso,
+    dev_dso=dev_dso,
+    test_dso=test_dso,
+)
 dbo_16 = do.DataBunch(
     shape='volume',
     cut=None,
