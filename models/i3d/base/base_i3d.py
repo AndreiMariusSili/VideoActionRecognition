@@ -9,8 +9,6 @@ from models.i3d.common import classifier as cls, encoder as en
 
 
 class I3D(nn.Module):
-    NAME = 'I3D'
-
     def __init__(self, time_steps: int, num_classes: int, dropout_prob: float = 0.0):
         super(I3D, self).__init__()
         self.time_steps = time_steps

@@ -10,7 +10,6 @@ from options import model_options as mo
 
 
 class I3DEncoder(nn.Module):
-
     def __init__(self, latent_planes: int, name: str = 'i3d_encoder'):
         super(I3DEncoder, self).__init__()
         self.latent_planes = latent_planes

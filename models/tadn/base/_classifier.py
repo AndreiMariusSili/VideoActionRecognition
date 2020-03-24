@@ -5,10 +5,6 @@ from torch import nn
 
 
 class TimeAlignedDenseNetClassifier(nn.Module):
-    in_planes: int
-    num_classes: int
-    drop_rate: float
-
     def __init__(self, in_planes: int, embed_planes: Optional[int], drop_rate: float, num_classes: int):
         super(TimeAlignedDenseNetClassifier, self).__init__()
 

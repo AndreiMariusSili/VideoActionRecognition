@@ -11,8 +11,6 @@ VAE_FORWARD = tp.Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor, th.Tensor, th
 
 
 class VAEI3D(nn.Module):
-    NAME = 'VAEI3D'
-
     def __init__(self, time_steps: int, latent_planes: int, dropout_prob: float, num_classes: int, vote_type: str):
         super(VAEI3D, self).__init__()
         assert vote_type in ['soft', 'hard'], f'Unknown vote type: {vote_type}.'

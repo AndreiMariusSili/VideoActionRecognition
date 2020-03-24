@@ -4,7 +4,12 @@ from typing import Optional, List, Union
 
 from options import data_options as do, model_options as mo
 
-Models = Union[mo.I3DModel, mo.TADNModel, mo.TARNModel, mo.AEI3DModel, mo.AETARNModel, mo.VAEI3DModel, mo.VAETARNModel]
+Models = Union[
+    mo.I3DModel, mo.TADNModel, mo.TARNModel,
+    mo.AEI3DModel, mo.AETARNModel,
+    mo.GSNNI3DModel, mo.GSNNTARNModel,
+    mo.VAEI3DModel, mo.VAETARNModel
+]
 
 
 @dc.dataclass

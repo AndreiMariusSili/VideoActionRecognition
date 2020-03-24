@@ -9,10 +9,6 @@ from options import model_options as mo
 
 
 class I3DClassifier(nn.Module):
-    embed_planes: int
-    dropout_prob: float
-    num_classes: int
-
     def __init__(self, embed_planes: int, dropout_prob: float, num_classes: int):
         super(I3DClassifier, self).__init__()
         self.embed_planes = embed_planes

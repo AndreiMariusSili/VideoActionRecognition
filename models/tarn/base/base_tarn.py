@@ -8,8 +8,6 @@ from models.tarn.common import classifier as cls, spatial_encoder as se, tempora
 
 
 class TimeAlignedResNet(nn.Module):
-    NAME = 'TARN'
-
     def __init__(self, time_steps: int,
                  spatial_encoder_planes: tp.Tuple[int, ...], bottleneck_planes: int,
                  class_embed_planes: int, classifier_drop_rate: float, num_classes: int):

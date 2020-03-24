@@ -29,13 +29,12 @@ class TemporalDenseBlock(nn.Module):
         _out = self.layers(_out)
 
         if self.step > 0:
-            # concatenate outputs of other time-steps
+            # cat outputs of other time-steps
             _out = th.cat((_prev, _out), dim=1)
 
         return _out
 
 
-# noinspection PyUnresolvedReferences
 class TemporalDenseNetEncoder(nn.Module):
     def __init__(self, in_planes: int, time_steps: int, growth_rate: int, drop_rate: float):
         super(TemporalDenseNetEncoder, self).__init__()

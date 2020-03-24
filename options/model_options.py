@@ -1,7 +1,12 @@
 import dataclasses as dc
 from typing import Optional, Union, List
 
-MODELS = Union['I3DModel', 'TADNModel', 'TARNModel', 'AEI3DModel', 'AETARNModel', 'VAEI3DModel', 'VAETARNModel']
+MODELS = Union[
+    'I3DModel', 'TADNModel', 'TARNModel',
+    'AEI3DModel', 'AETARNModel',
+    'GSNNI3DModel', 'GSNNTARNModel',
+    'VAEI3DModel', 'VAETARNModel'
+]
 
 
 @dc.dataclass
@@ -37,6 +42,14 @@ class VAETARNModel:
 
 
 @dc.dataclass
+class GSNNTARNModel:
+    opts: 'GSNNTARNOptions'
+    arch: str = 'tarn_gsnn'
+    type: str = 'gsnn'
+    size: Optional[str] = None
+
+
+@dc.dataclass
 class I3DModel:
     opts: 'I3DOptions'
     arch: str = 'i3d'
@@ -57,6 +70,14 @@ class VAEI3DModel:
     opts: 'VAEI3DOptions'
     arch: str = 'i3d_vae'
     type: str = 'vae'
+    size: Optional[str] = None
+
+
+@dc.dataclass
+class GSNNI3DModel:
+    opts: 'GSNNI3DOptions'
+    arch: str = 'i3d_gsnn'
+    type: str = 'gsnn'
     size: Optional[str] = None
 
 
@@ -91,6 +112,19 @@ class AETARNOptions:
     bottleneck_planes: int
     spatial_decoder_planes: List[int]
     classifier_drop_rate: float
+    flow: bool
+    class_embed_planes: Optional[int] = None
+    num_classes: Optional[int] = None
+
+
+@dc.dataclass
+class GSNNTARNOptions:
+    batch_size: int
+    time_steps: int
+    spatial_encoder_planes: List[int]
+    bottleneck_planes: int
+    classifier_drop_rate: float
+    vote_type: str
     class_embed_planes: Optional[int] = None
     num_classes: Optional[int] = None
 
@@ -103,9 +137,9 @@ class VAETARNOptions:
     bottleneck_planes: int
     spatial_decoder_planes: List[int]
     classifier_drop_rate: float
+    vote_type: str
     class_embed_planes: Optional[int] = None
     num_classes: Optional[int] = None
-    vote_type: str = 'hard'
 
 
 @dc.dataclass
@@ -122,6 +156,17 @@ class AEI3DOptions:
     time_steps: int
     embed_planes: int
     dropout_prob: float
+    flow: bool
+    num_classes: Optional[int] = None
+
+
+@dc.dataclass
+class GSNNI3DOptions:
+    batch_size: int
+    time_steps: int
+    latent_planes: int
+    dropout_prob: float
+    vote_type: str
     num_classes: Optional[int] = None
 
 

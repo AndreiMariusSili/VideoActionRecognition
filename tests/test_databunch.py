@@ -6,15 +6,16 @@ import specs
 
 HMDB_DBO = [
     specs.datasets.hmdb1.dbo_4,
-    specs.datasets.hmdb2.dbo_4,
-    specs.datasets.hmdb3.dbo_4,
-    specs.datasets.hmdb1.dbo_16,
-    specs.datasets.hmdb2.dbo_16,
-    specs.datasets.hmdb3.dbo_16,
+    specs.datasets.hmdb1.dbo_8,
+    # specs.datasets.hmdb1.dbo_16,
+    specs.datasets.hmdb1.dbo_4_flow,
+    specs.datasets.hmdb1.dbo_8_flow,
+    # specs.datasets.hmdb1.dbo_16_flow,
 ]
 SMTH_DBO = [
     specs.datasets.smth1.dbo_4,
-    specs.datasets.smth1.dbo_16
+    specs.datasets.smth1.dbo_8,
+    # specs.datasets.smth1.dbo_16
 ]
 
 

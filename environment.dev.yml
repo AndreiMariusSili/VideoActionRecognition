@@ -20,9 +20,9 @@ dependencies:
   - pytest==5.3.4
   - jupyter==1.0.0
   - jupyterlab==1.2.5
-  - opencv==4.2.0
   - pip:
       - scikit-video==1.1.11
       - imgaug==0.3.0
       - dacite==1.2.0
       - patool==1.12
+      - opencv-contrib-python

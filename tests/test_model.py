@@ -24,12 +24,14 @@ CLASS_ARGS = [
     ('i3d_class_4', 4), ('i3d_class_8', 8),
 ]
 AE_ARGS = [
-    ('tarn_ae_small', 4), ('tarn_ae_large', 16),
-    ('i3d_ae_small', 4), ('i3d_ae_large', 16)
+    ('tarn_ae_4', 4), ('tarn_ae_8', 8),
+    ('tarn_flow_4', 4), ('tarn_flow_8', 8),
+    ('i3d_ae_4', 4), ('i3d_ae_8', 8),
+    ('i3d_flow_4', 4), ('i3d_flow_8', 8),
 ]
 VAE_ARGS = [
-    ('tarn_vae_small', 4), ('tarn_vae_large', 16),
-    ('i3d_vae_small', 4), ('i3d_vae_large', 16)
+    ('tarn_vae_4', 4), ('tarn_vae_8', 8),
+    ('i3d_vae_4', 4), ('i3d_vae_8', 8)
 ]
 
 
@@ -85,7 +87,7 @@ def test_ae_model(model_spec: str, time_steps: int):
     recon, pred, temporal_embeds, class_embed = model(_in)
 
     df = pd.DataFrame.from_dict({
-        'model': [model.NAME],
+        'model': [model_spec],
         'size': [f'{hp.count_parameters(model):,}'],
         'preds': [str(tuple(pred.shape))],
         'embeds': [str(tuple(class_embed.shape))],
@@ -96,10 +98,9 @@ def test_ae_model(model_spec: str, time_steps: int):
     class_embed_planes = CLASS_EMBED_PLANES
     if hasattr(opts, 'class_embed_planes'):
         class_embed_planes = opts.class_embed_planes
-
-    assert pred.shape == (BATCH_SIZE, NUM_CLASSES)
+        assert pred.shape == (BATCH_SIZE, NUM_CLASSES)
     assert class_embed.shape == (BATCH_SIZE, class_embed_planes)
-    assert recon.shape == (BATCH_SIZE, time_steps, C, H, W)
+    assert recon.shape == (BATCH_SIZE, time_steps, 2 if '_flow_' in model_spec else 3, 56, 56)
 
 
 @pytest.mark.parametrize(['model_spec', 'time_steps'], VAE_ARGS)

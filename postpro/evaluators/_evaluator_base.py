@@ -103,6 +103,7 @@ class BaseEvaluator(abc.ABC):
         """Calculate results for a split and log."""
         assert split in ['train', 'dev', 'test'], f'Unknown split: {split}.'
         self.logger.log(f'Evaluating {split} split...')
+        (ct.WORK_ROOT / self.opts.run_dir / split).mkdir(parents=True, exist_ok=True)
 
         if split == 'train':
             loader = self.data_bunch.train_loader
@@ -115,12 +116,13 @@ class BaseEvaluator(abc.ABC):
             evaluator = self.test_evaluator
 
         metrics = self._calculate_metrics(evaluator, loader, split)
-        outs, ids = self._calculate_results(loader, split)
-        outs, tsne_ids = self._calculate_tsnes(outs, ids, split)
-
         self.logger.log_metrics(metrics)
         self.logger.persist_metrics(metrics, split)
-        self.logger.persist_outs(outs, tsne_ids, split)
+
+        # Not computing predictions and tsnes for now since we don't use them anywhere.
+        # outs, ids = self._calculate_results(loader, split)
+        # outs, tsne_ids = self._calculate_tsnes(outs, ids, split)
+        # self.logger.persist_outs(outs, tsne_ids, split)
 
         return self
 
@@ -133,16 +135,15 @@ class BaseEvaluator(abc.ABC):
 
     def _calculate_results(self, loader: tud.DataLoader, split: str) -> RESULTS:
         """Calculate extra results: predictions, embeddings, etc."""
-        (ct.WORK_ROOT / self.opts.run_dir / split).mkdir(parents=True, exist_ok=True)
         ids, targets = [], []
         outs = cl.defaultdict(list)
 
         pbar = tqdm.tqdm(total=len(loader.dataset), leave=True)
         with th.no_grad():
-            for i, (video_data, video_labels, videos, labels) in enumerate(loader):
-                x = video_data.to(device=self.device, non_blocking=True)
+            for i, (_in, _cls_gt, _recon_gt, videos) in enumerate(loader):
+                x = _in.to(device=self.device, non_blocking=True)
 
-                ids.extend([video.meta.id for video in videos])
+                ids.extend([video.id for video in videos])
 
                 batch_outs = self._get_model_outputs(x)
                 for k, v in batch_outs.items():

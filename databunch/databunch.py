@@ -1,11 +1,8 @@
 from dataclasses import asdict
-from typing import List, Tuple
 
 from torch.utils import data as thd
 
 import databunch.dataset as dataset
-import databunch.label as pil
-import databunch.video as piv
 import helpers as hp
 import options.data_options as do
 
@@ -50,19 +47,6 @@ class VideoDataBunch(object):
                                           sampler=self.test_sampler,
                                           worker_init_fn=dataset.init_worker,
                                           **asdict(self.dbo.dlo))
-
-    def get_batch(self, n: int, spl: str) -> Tuple[List[piv.Video], List[pil.Label]]:
-        """Retrieve a random batch from one of the datasets."""
-        assert spl in ['train', 'dev', 'valid'], f'Unknown split: {spl}.'
-
-        if spl == 'train':
-            batch = self.train_set.get_batch(n)
-        elif spl == 'dev':
-            batch = self.dev_set.get_batch(n)
-        else:
-            batch = self.test_set.get_batch(n)
-
-        return batch
 
     def __str__(self):
         return (f"""Something-Something-v2 DataBunch.

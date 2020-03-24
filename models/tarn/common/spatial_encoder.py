@@ -1,4 +1,4 @@
-import typing as tp
+import typing as t
 
 import torch as th
 from torch import nn
@@ -9,7 +9,7 @@ import models.tarn.common as tc
 class SpatialResidualBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, in_planes: int, out_planes: int, stride: int = 1, downsample: tp.Optional[nn.Module] = None):
+    def __init__(self, in_planes: int, out_planes: int, stride: int = 1, downsample: t.Optional[nn.Module] = None):
         super(SpatialResidualBlock, self).__init__()
 
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
@@ -41,7 +41,7 @@ class SpatialResidualBlock(nn.Module):
 
 
 class SpatialResNetEncoder(nn.Module):
-    def __init__(self, out_planes: tp.Tuple[int, ...], bottleneck_planes: int):
+    def __init__(self, out_planes: t.Tuple[int, ...], bottleneck_planes: int):
         super(SpatialResNetEncoder, self).__init__()
         self.in_planes = out_planes[0]
         self.out_planes = out_planes
@@ -78,9 +78,10 @@ class SpatialResNetEncoder(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, _in: th.Tensor) -> th.Tensor:
-        b, t, c, h, w = _in.shape
-        _out = _in.reshape((b * t, c, h, w))
+    def forward(self, _in: th.Tensor) -> t.Tuple[th.Tensor, t.List[th.Tensor]]:
+        _mid_outs = []
+        b, _t, c, h, w = _in.shape
+        _out = _in.reshape((b * _t, c, h, w))
 
         _out = self.conv1(_out)
         _out = self.bn1(_out)
@@ -89,7 +90,9 @@ class SpatialResNetEncoder(nn.Module):
 
         for layer in self.layers:  # noqa
             _out = layer(_out)
+            _mid_outs.append(_out)
+
         _out = self.bottleneck(_out)
 
         _, c, h, w = _out.shape
-        return _out.reshape(b, t, c, h, w)
+        return _out.reshape(b, _t, c, h, w), _mid_outs

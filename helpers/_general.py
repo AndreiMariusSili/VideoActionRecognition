@@ -125,7 +125,8 @@ def build_spec(opts: jo.EXPERIMENT_JOB_OPTIONS) -> eo.ExperimentOptions:
 
     name = _build_name(opts)
     model: mo.MODELS = getattr(specs.models, f'{opts.model}_{opts.frames}')
-    databunch: do.DataBunch = getattr(getattr(specs.datasets, opts.dataset), f'dbo_{opts.frames}')
+    dbo_name = f'dbo_{opts.frames}_flow' if '_flow' in opts.model else f'dbo_{opts.frames}'
+    databunch: do.DataBunch = getattr(getattr(specs.datasets, opts.dataset), dbo_name)
 
     if opts.cut == '4q':
         databunch.cut = 1.00
@@ -142,6 +143,9 @@ def build_spec(opts: jo.EXPERIMENT_JOB_OPTIONS) -> eo.ExperimentOptions:
     elif model.type == 'ae':
         trainer = specs.trainers.class_ae_trainer
         evaluator = specs.evaluators.class_ae_evaluator
+    elif model.type == 'gsnn':
+        trainer = specs.trainers.class_gsnn_trainer
+        evaluator = specs.evaluators.class_gsnn_evaluator
     elif model.type == 'vae':
         trainer = specs.trainers.class_vae_trainer
         evaluator = specs.evaluators.class_vae_evaluator

@@ -9,8 +9,6 @@ from models.tadn.base._temporal_encoder import TemporalDenseNetEncoder
 
 
 class TimeAlignedDenseNet(nn.Module):
-    NAME = 'TADN'
-
     def __init__(self, time_steps: int, temporal_in_planes: int, growth_rate: int, temporal_drop_rate: float,
                  classifier_drop_rate: float, class_embed_planes: int, num_classes: int):
         super(TimeAlignedDenseNet, self).__init__()

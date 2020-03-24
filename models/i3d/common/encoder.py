@@ -1,5 +1,5 @@
 # Based on implementation from https://github.com/hassony2/kinetics_i3d_pytorch
-import typing as tp
+import typing as t
 
 import torch as th
 from torch import nn
@@ -9,10 +9,13 @@ from options import model_options as mo
 
 
 class I3DEncoder(nn.Module):
-    def __init__(self, embed_size: tp.Optional[int], name: str = 'i3d_encoder'):
+    SKIP_INTERIM_ACTIVATIONS = frozenset(['mixed_3c', 'mixed_4f'])
+
+    def __init__(self, embed_size: t.Optional[int], name: str = 'i3d_encoder', flow=False):
         super(I3DEncoder, self).__init__()
         self.embed_size = embed_size
         self.name = name
+        self.flow = flow
 
         # 3 x 4 x 224 x 224
         opts = mo.Unit3DOptions(out_channels=64, in_channels=3, kernel_size=[7, 7, 7], stride=[2, 2, 2], padding='SAME')
@@ -55,11 +58,12 @@ class I3DEncoder(nn.Module):
                                     stride=[1, 1, 1], activation='none', padding='SAME', use_bias=False, use_bn=False)
             self.embed = ib.Unit3D(opts)
 
-    def forward(self, _in: th.Tensor) -> th.tensor:
+    def forward(self, _in: th.Tensor) -> t.Tuple[th.Tensor, t.List[th.Tensor]]:
+        _mid_outs = []
         _out = _in.transpose(1, 2)
-        # print(f'{"encoder input":20s}:\t{_out.shape}')
         for name, module in list(self.named_children()):
             _out = module(_out)
-            # print(f'{name:20s}:\t{_out.shape}')
+            if name in self.SKIP_INTERIM_ACTIVATIONS:
+                _mid_outs.append(_out)
 
-        return _out
+        return _out, _mid_outs

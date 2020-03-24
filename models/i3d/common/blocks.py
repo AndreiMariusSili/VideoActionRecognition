@@ -9,9 +9,6 @@ from options import model_options as mo
 
 
 class MaxPool3dTFPadding(nn.Module):
-    pad: nn.ConstantPad3d
-    pool: nn.MaxPool3d
-
     def __init__(self, kernel_size, stride=None, padding='SAME'):
         super(MaxPool3dTFPadding, self).__init__()
         if padding == 'SAME':

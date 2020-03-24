@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import torch as th
 import torch.utils.data as thd
-import torchvision.transforms.functional as F  # noqa
 
 import constants as ct
 import databunch.label as pil
@@ -19,18 +18,18 @@ def init_worker(_id: int):
     np.random.seed(_id)
 
 
-def collate(batch: [(piv.Video, pil.Label)]) -> (th.Tensor, th.Tensor, piv.Video, pil.Label):
-    videos, labels = zip(*batch)
+def collate(batch: [(piv.Video, pil.Label)]) -> (th.Tensor, th.Tensor, t.List[pim.VideoMeta]):
+    videos, labels, metas = zip(*batch)
 
-    videos_data = th.stack([th.stack(video.data, dim=0) for video in videos], dim=0)
-    labels_data = th.tensor([label.data for label in labels], dtype=th.int64)
+    input_data = th.stack([th.stack(video.data, dim=0) for video in videos], dim=0)
+    recon_data = th.stack([th.stack(video.recon, dim=0) for video in videos], dim=0)
+    class_data = th.tensor([label.data for label in labels], dtype=th.int64)
 
-    return videos_data, labels_data, videos, labels
+    return input_data, class_data, recon_data, metas
 
 
 class VideoDataset(thd.Dataset):
     def __init__(self, cut: float, frame_size: int, data_opts: do.DataSetOptions, sampling_opts: do.SamplingOptions):
-        """Initialize a video dataset from the DataFrame containing meta information."""
         assert 0.0 <= cut <= 1.0, f'Cut should be between 0.0, and 1.0. Received: {cut}.'
         assert data_opts.setting in ['train', 'eval'], f'Unknown setting: {data_opts.setting}.'
 
@@ -58,7 +57,7 @@ class VideoDataset(thd.Dataset):
                 ia.CropToFixedSize(224, 224),
                 ia.Fliplr(0.5),
                 ia.Flipud(0.5),
-                ia.Add((-25, 25)),
+                ia.Add((25, 25)),
                 ia.AddToHueAndSaturation((-25, 25)),
             ])
         else:
@@ -69,31 +68,17 @@ class VideoDataset(thd.Dataset):
 
         return aug_seq
 
-    def aug(self, video_data: t.List[np.ndarray]) -> t.List[th.Tensor]:
-        det_aug_seq = self.aug_seq.to_deterministic()
-
-        return [F.to_tensor(det_aug_seq.augment_image(frame_data)) for frame_data in video_data]
-
-    def __getitem__(self, item: int) -> t.Tuple[piv.Video, pil.Label]:
+    def __getitem__(self, item: int) -> t.Tuple[piv.Video, pil.Label, pim.VideoMeta]:
         video_meta = pim.VideoMeta(**self.meta.iloc[item][pim.VideoMeta.fields].to_dict())
 
         video = piv.Video(video_meta, ct.WORK_ROOT / self.do.root_path, self.do.read_jpeg,
-                          self.cut, self.do.setting, self.so.num_segments)
+                          self.cut, self.do.setting, self.so.num_segments, self.do.use_flow, self.aug_seq)
         label = pil.Label(video_meta)
 
-        video.data = self.aug(video.data)
+        video.to_tensor()
+        label.to_tensor()
 
-        return video, label
-
-    def get_batch(self, n: int) -> t.Tuple[t.List[piv.Video], t.List[pil.Label]]:
-        videos, labels = [], []
-        for i, row in self.meta.sample(n=n).iterrows():
-            iloc = self.meta.index.get_loc(i)
-            video, label = self[iloc]
-            videos.append(video)
-            labels.append(label)
-
-        return videos, labels
+        return video, label, video_meta
 
     def __len__(self):
         return len(self.meta)

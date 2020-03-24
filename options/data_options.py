@@ -14,6 +14,7 @@ class DataSetOptions:
     meta_path: pl.Path
     read_jpeg: bool
     setting: str
+    use_flow: bool = False
     keep: Union[float, int, None] = None
 
 

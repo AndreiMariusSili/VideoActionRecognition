@@ -107,7 +107,7 @@ class ExperimentLogger(object):
             self.log(str(model))
             self.log(str(criterion))
             self.log(str(optimizer))
-            self.log(str(lr_scheduler.state_dict()))
+            self.log(str(lr_scheduler.state_dict() if lr_scheduler else None))
 
     def print_options(self):
         def inner(opts: t.Any, prefix: str = ''):

@@ -38,7 +38,7 @@ def _make_data_dirs():
 
 
 def _create_meta():
-    """Create meta files. Groups are read from .txt file and labels with no group are assigned a new singular group."""
+    """Create meta files. Groups are read from .txt file and labels with no grp are assigned a new singular grp."""
     meta_train = pd.read_json((ct.WORK_ROOT / ct.SMTH_ROOT_DIR / META_TRAIN_NAME).as_posix(), orient='records')
     meta_valid = pd.read_json((ct.WORK_ROOT / ct.SMTH_ROOT_DIR / META_VALID_NAME).as_posix(), orient='records')
     meta_test = pd.read_json((ct.WORK_ROOT / ct.SMTH_ROOT_DIR / META_TEST_NAME).as_posix(), orient='records')

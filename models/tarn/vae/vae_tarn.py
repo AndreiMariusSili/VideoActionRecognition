@@ -10,8 +10,6 @@ VAE_FORWARD = Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor, th.Tensor, th.Te
 
 
 class VAETimeAlignedResNet(nn.Module):
-    NAME = 'VAETARN'
-
     def __init__(self, time_steps: int,
                  spatial_encoder_planes: Tuple[int, ...], bottleneck_planes: int,
                  spatial_decoder_planes: Tuple[int, ...],

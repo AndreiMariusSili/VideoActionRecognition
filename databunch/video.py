@@ -3,14 +3,18 @@ import pathlib as pl
 import typing as t
 
 import cv2
+import cv2.optflow as optf  # noqa
+import imgaug.augmenters as ia
 import numpy as np
+import torch as th
+import torchvision.transforms.functional as F  # noqa
 
 import databunch.video_meta as vm
 
 
 class Video(object):
     def __init__(self, meta: vm.VideoMeta, root_path: pl.Path, read_jpeg: bool,
-                 cut: float, setting: str, num_segments: int):
+                 cut: float, setting: str, num_segments: int, flow: bool, aug_seq: ia.Sequential):
         assert 0.0 <= cut <= 1.0, f'Cut should be a value between 0.0 and 1.0. Received: {cut}.'
         assert setting in ['train', 'eval'], f'Unknown setting: {setting}.'
 
@@ -20,16 +24,37 @@ class Video(object):
         self.cut = int(round(self.meta.length * cut)) - 1
         self.setting = setting
         self.num_segments = num_segments
+        self.flow = flow
+        self.aug_seq = aug_seq
 
+        self.flow_algo = cv2.optflow.createOptFlow_Farneback()
         self.cut_locs = self._cut_locs()
         self.subsample_locs = self._subsample_locs()
+        self.data = self._get_data()
+        self.data = self._do_augment()
+        self.recon = self._get_recon()
+
+    def _get_data(self):
         if self.read_jpeg:
-            self.data = self._image_data()
+            data = self._image_data()
         else:
-            self.data = self._video_data()
+            data = self._video_data()
+
+        return data
+
+    def _do_augment(self):
+        det_aug_seq = self.aug_seq.to_deterministic()
+
+        return [det_aug_seq.augment_image(frame) for frame in self.data]
+
+    def _get_recon(self):
+        data = ia.Resize(56)(images=self.data)
+        recon = self._flow_data(data) if self.flow else data
+
+        return recon
 
     def _cut_locs(self) -> np.ndarray:
-        all_locs = np.arange(self.meta.length)
+        all_locs = np.arange(self.meta.length)  # disregard first and last frames, as they may be blank.
         cut_locs = all_locs[0:self.cut]
 
         return np.array(cut_locs)
@@ -84,6 +109,33 @@ class Video(object):
         cap.release()
 
         return data
+
+    def _flow_data(self, data: t.List[np.ndarray]) -> t.List[np.ndarray]:
+        _flow = []
+        for i in range(len(data) - 1):
+            first, second = data[i], data[i + 1]
+            first = cv2.cvtColor(first, cv2.COLOR_RGB2GRAY)
+            second = cv2.cvtColor(second, cv2.COLOR_RGB2GRAY)
+            frame_flow = np.clip(self.flow_algo.calc(first, second, None), -20, 20)
+            _flow.append(frame_flow)
+
+        return _flow
+
+    def to_tensor(self):
+        self.data = [F.to_tensor(frame) for frame in self.data]
+        self.recon = [F.to_tensor(flow) for flow in self.recon]
+
+    def to_numpy(self):
+        if isinstance(self.data, list):
+            for i in range(len(self.data)):
+                if isinstance(self.data[i], th.Tensor):
+                    self.data[i] = self.data[i].cpu().numpy()
+        if isinstance(self.recon, list):
+            for i in range(len(self.recon)):
+                if isinstance(self.recon[i], th.Tensor):
+                    self.recon[i] = self.recon[i].cpu().numpy()  # noqa
+        self.data = np.transpose(np.stack(self.data, axis=0), axes=(0, 2, 3, 1))
+        self.recon = np.transpose(np.stack(self.recon, axis=0), axes=(0, 2, 3, 1))
 
     def __str__(self):
         return f'Video {self.meta.id} ({"x".join(map(str, (len(self.data), *self.data[0].shape)))})'

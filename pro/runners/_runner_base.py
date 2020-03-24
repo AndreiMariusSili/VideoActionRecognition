@@ -126,8 +126,7 @@ class BaseRunner(abc.ABC):
 
         # when running overfit, keep batch size of data taking into account world size and use only train set.
         if self.opts.overfit:
-            self.opts.trainer.epochs = 64
-            self.opts.databunch.dlo.batch_size = 1
+            self.opts.trainer.epochs = 128
             self.opts.databunch.train_dso.setting = 'eval'
             self.opts.databunch.dev_dso.meta_path = self.opts.databunch.train_dso.meta_path
             self.opts.databunch.test_dso.meta_path = self.opts.databunch.train_dso.meta_path
@@ -188,8 +187,7 @@ class BaseRunner(abc.ABC):
     @_Decorator.sync
     def _init_optimizer(self) -> optim.Adam:
         opts = dc.asdict(self.opts.trainer.optim_opts)
-        # noinspection PyUnresolvedReferences
-        optimizer = th.optim.AdamW(self.model.parameters(), **opts)
+        optimizer = th.optim.AdamW(self.model.parameters(), **opts)  # noqa
 
         if self.opts.resume:
             optimizer_path = glob.glob(str(ct.WORK_ROOT / self.opts.run_dir / 'ckpt' / 'latest_optimizer_*')).pop()
@@ -262,10 +260,11 @@ class BaseRunner(abc.ABC):
             'optimizer': self.optimizer,
             'lr_scheduler': self.lr_scheduler
         }
+        score_fn = self._neg_dev_total_loss if self.opts.debug else self._dev_acc_1
         best_ckpt = ih.ModelCheckpoint(dirname=ckpt_dir.as_posix(), filename_prefix='best',
                                        n_saved=1, require_empty=require_empty,
                                        save_as_state_dict=True,
-                                       score_function=self._dev_acc_1,
+                                       score_function=score_fn,
                                        score_name='dev_acc_1')
         latest_ckpt = ih.ModelCheckpoint(dirname=ckpt_dir.as_posix(),
                                          filename_prefix='latest',

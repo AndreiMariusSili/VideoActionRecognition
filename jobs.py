@@ -44,6 +44,9 @@ def run_experiment(local_rank: int, opts: jo.RunExperimentOptions):
     elif spec.model.type == 'ae':
         import pro.runners.runner_ae as rae
         rae.AutoEncoderRunner(spec, local_rank).run()
+    elif spec.model.type == 'gsnn':
+        import pro.runners.runner_gsnn as rgsnn
+        rgsnn.GSNNRunner(spec, local_rank).run()
     elif spec.model.type == 'vae':
         import pro.runners.runner_vae as rvae
         rvae.VariationalAutoEncoderRunner(spec, local_rank).run()
@@ -58,6 +61,9 @@ def evaluate_experiment(local_rank: int, opts: jo.EvaluateExperimentOptions):
     elif spec.model.type == 'ae':
         import postpro.evaluators.evaluator_ae as eae
         eae.AutoEncoderEvaluator(spec, local_rank).start()
+    elif spec.model.type == 'gsnn':
+        import postpro.evaluators.evaluator_gsnn as egsnn
+        egsnn.GSNNEvaluator(spec, local_rank).start()
     elif spec.model.type == 'vae':
         import postpro.evaluators.evaluator_vae as evae
         evae.VariationalAutoEncoderEvaluator(spec, local_rank).start()
