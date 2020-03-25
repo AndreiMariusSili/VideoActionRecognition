@@ -58,7 +58,7 @@ class TemporalResNetEncoder(nn.Module):
         for _t in range(self.time_steps):
             _out_prev = _out
             _in_t = _in[:, _t, :, :, :]
-            _out = self.temporal[_t](_in_t, _out_prev)  # noqa
+            _out = self.temporal[_t](_in_t, _out_prev)
             b, c, h, w = _out.shape
             _outs.append(_out.reshape(b, 1, c, h, w))
         _outs = th.cat(_outs, dim=1)

@@ -9,7 +9,6 @@ import options.job_options as jo
 
 
 def parse_options(opts: str, opts_dc: dc.dataclass) -> tp.Any:
-    """Parse an options string from key1:value1,key2:value2 to dict representation."""
     type_fns = opts_dc.__annotations__
     pairs = opts.strip().split(',')
     parsed: tp.Dict[str, str] = {}
@@ -21,7 +20,6 @@ def parse_options(opts: str, opts_dc: dc.dataclass) -> tp.Any:
 
 
 def main(args):
-    """Parse arguments and start jobs."""
     start = datetime.datetime.now()
     if args.local_rank <= 0:
         env.LOGGER.info(f'START: {start}')

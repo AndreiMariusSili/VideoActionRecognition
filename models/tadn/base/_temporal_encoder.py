@@ -23,14 +23,12 @@ class TemporalDenseBlock(nn.Module):
     def forward(self, _in: th.Tensor, _prev: tp.Optional[th.Tensor]) -> th.Tensor:
         _out = _in
         if _prev is not None:
-            # cat across channels
-            _out = th.cat((_in, _prev), dim=1)
+            _out = th.cat((_in, _prev), dim=1)  # cat across channels
 
         _out = self.layers(_out)
 
         if self.step > 0:
-            # cat outputs of other time-steps
-            _out = th.cat((_prev, _out), dim=1)
+            _out = th.cat((_prev, _out), dim=1)  # cat outputs of other time-steps
 
         return _out
 

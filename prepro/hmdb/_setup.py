@@ -11,7 +11,6 @@ VIDEO_ARCHIVE = 'hmdb51_org.rar'
 
 
 def _make_data_dirs():
-    """Create directories."""
     os.makedirs(ct.WORK_ROOT / ct.HMDB_META_DIR_1, exist_ok=True)
     os.makedirs(ct.WORK_ROOT / ct.HMDB_META_DIR_2, exist_ok=True)
     os.makedirs(ct.WORK_ROOT / ct.HMDB_META_DIR_3, exist_ok=True)
@@ -22,7 +21,6 @@ def _make_data_dirs():
 
 
 def _extract():
-    """Extract the dataset."""
     patoolib.extract_archive(
         archive=str(ct.WORK_ROOT / ct.HMDB_ROOT_DIR / VIDEO_ARCHIVE),
         outdir=str(ct.WORK_ROOT / ct.HMDB_AVI_DIR),
@@ -43,7 +41,6 @@ def _extract():
 
 
 def _create_meta(split: str, verbose: bool = False):
-    """Parse .txt files into meta.{split}.json"""
     a_split = (ct.WORK_ROOT / ct.HMDB_TXT_DIR).glob(f'*_split{split}.txt')
 
     meta_train = []
@@ -90,7 +87,6 @@ def _create_meta(split: str, verbose: bool = False):
 
 
 def __create_labels(meta_train: pd.DataFrame) -> pd.DataFrame:
-    """Create labels mapping from train meta.."""
     labels = pd.DataFrame(meta_train['label'].unique(), columns=['label']).reset_index().set_index('label')
     labels.columns = ['lid']
 
@@ -98,7 +94,6 @@ def __create_labels(meta_train: pd.DataFrame) -> pd.DataFrame:
 
 
 def _cleanup():
-    """Remove temporary directories and move archives to folder."""
     for path in (ct.WORK_ROOT / ct.HMDB_TXT_DIR).glob("*"):
         if path.is_file():
             path.unlink()

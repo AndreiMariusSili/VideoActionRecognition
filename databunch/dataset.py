@@ -89,7 +89,6 @@ class VideoDataset(thd.Dataset):
         return string
 
     def _stratified_sample_meta(self, keep: float):
-        """Selects the first instances of a class up to a proportion keep."""
         samples = []
         for lid in self.meta['lid'].unique():
             class_meta = self.meta[self.meta['lid'] == lid]

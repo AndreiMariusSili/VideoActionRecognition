@@ -12,7 +12,6 @@ DATA_ROOT_DIR = None
 
 
 def add_columns(meta: pd.DataFrame) -> None:
-    """Add columns of interest to the DataFrame."""
     meta['length'] = None
     meta['height'] = None
     meta['width'] = None
@@ -20,7 +19,6 @@ def add_columns(meta: pd.DataFrame) -> None:
 
 
 def _augment_row(row: pd.Series) -> pd.Series:
-    """Add video and label information to the row."""
     video_path = DATA_ROOT_DIR / row['video_path']
 
     video = skvideo.io.vread(video_path.as_posix())
@@ -33,7 +31,6 @@ def _augment_row(row: pd.Series) -> pd.Series:
 
 
 def _augment_meta(batch: Tuple[int, List[Any]]) -> ghp.parallel.Result:
-    """Create a batch of augmented rows."""
     no, batch = batch
 
     rows = []

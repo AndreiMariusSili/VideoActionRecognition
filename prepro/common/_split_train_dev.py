@@ -11,7 +11,6 @@ import prepro.helpers as php
 
 
 def _split_train_dev(meta_path: pl.Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Splits a meta file into train and dev."""
     train = hp.read_meta(meta_path).sort_index()
     train, dev = skm.train_test_split(train, random_state=ct.RANDOM_STATE, stratify=train['lid'], test_size=ct.DEV_SIZE)
 

@@ -35,6 +35,5 @@ class GSNNRunner(_base.BaseRunner):
         self.trainer.add_event_handler(ie.Events.EPOCH_COMPLETED, self._step_kld)
 
     def _step_kld(self, _engine: ie.Engine) -> None:
-        """Gradually increase the KLD from null to full."""
         step = 1.0 / self.opts.trainer.kld_warmup_epochs
         self.criterion.kld_factor = min(1.0, _engine.state.epoch * step)

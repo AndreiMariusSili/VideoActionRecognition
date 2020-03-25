@@ -14,9 +14,6 @@ class Result:
 
 
 def chunk(n: int, iterable: Iterable):
-    """Collect data into chunks of size, enumerate them, and filter out fill values.
-            grouper('ABCDEFG', 3, 'x') --> (0, ABC) (1, DEF) (2, G)"
-    """
     args = [iter(iterable)] * n
     batches = itertools.zip_longest(*args, fillvalue=None)
     enumerated_and_filtered = []
@@ -27,7 +24,6 @@ def chunk(n: int, iterable: Iterable):
 
 def execute(func: Callable, items: List[Any],
             batch_size: int = 20, workers: int = os.cpu_count(), debug=False) -> List[Any]:
-    """Execute a callable over the iterable in parallel."""
     results = []
     kwargs = {
         'total': len(items),

@@ -5,7 +5,6 @@ import constants as ct
 
 
 def get_data_root_path(dataset: str) -> pl.Path:
-    """Get the path to the root data directory on the dataset."""
     if dataset == 'smth':
         root_path = getattr(ct, f'SMTH_ROOT_DIR')
     elif dataset == 'hmdb':
@@ -17,7 +16,6 @@ def get_data_root_path(dataset: str) -> pl.Path:
 
 
 def get_stats_path(dataset: str, split: int) -> pl.Path:
-    """Get the path to the stats file based on the dataset."""
     if dataset == 'smth':
         stats_path = getattr(ct, f'SMTH_STATS_MERGED_{split}')
     elif dataset == 'hmdb':
@@ -29,7 +27,6 @@ def get_stats_path(dataset: str, split: int) -> pl.Path:
 
 
 def get_video_path(dataset: str):
-    """Get the path to the video folder based on the dataset."""
     if dataset == 'smth':
         video_path = ct.SMTH_WEBM_DIR
     elif dataset == 'hmdb':
@@ -41,7 +38,6 @@ def get_video_path(dataset: str):
 
 
 def get_image_path(dataset: str):
-    """Get the path to the image folder based on the dataset."""
     if dataset == 'smth':
         image_path = ct.SMTH_JPEG_DIR
     elif dataset == 'hmdb':
@@ -53,7 +49,6 @@ def get_image_path(dataset: str):
 
 
 def get_video_paths(dataset: str) -> List[pl.Path]:
-    """Get a list of the paths to all raw videos based on the dataset."""
     if dataset == 'smth':
         paths = list(ct.SMTH_WEBM_DIR.glob('*/*.webm'))
     elif dataset == 'hmdb':
@@ -65,7 +60,6 @@ def get_video_paths(dataset: str) -> List[pl.Path]:
 
 
 def get_meta_paths(dataset: str, split: int) -> List[List[pl.Path]]:
-    """Get a list of the paths to meta files based on the dataset."""
     if dataset == 'smth':
         paths = [
             [ct.SMTH_META_TRAIN_1, ct.SMTH_META_DEV_1, ct.SMTH_META_MERGED_1, ct.SMTH_META_VALID_1],

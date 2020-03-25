@@ -4,7 +4,6 @@ import options.job_options as jo
 
 
 def setup(opts: jo.SetupOptions) -> None:
-    """Run dataset setup."""
     if opts.set == 'smth':
         import prepro.smth
         prepro.smth.setup()
@@ -16,7 +15,6 @@ def setup(opts: jo.SetupOptions) -> None:
 
 
 def select_subset(opts: jo.SelectSubsetOptions) -> None:
-    """Create a dummy subset of the full dataset specified in opts."""
     if opts.set == 'smth':
         import prepro.smth
         prepro.smth.select_subset(opts)
@@ -25,7 +23,6 @@ def select_subset(opts: jo.SelectSubsetOptions) -> None:
 
 
 def prepro_set(opts: jo.PreproSetOptions) -> None:
-    """Preprocess the dataset specified in opts in predefined ways."""
     import prepro
     prepro.common.split_train_dev(opts.set, int(opts.split))
     prepro.common.augment_meta(opts.set, int(opts.split))
@@ -36,7 +33,6 @@ def prepro_set(opts: jo.PreproSetOptions) -> None:
 
 
 def run_experiment(local_rank: int, opts: jo.RunExperimentOptions):
-    """Run experiment."""
     spec: eo.ExperimentOptions = hp.build_spec(opts)
     if spec.model.type == 'class':
         import pro.runners.runner_class as rcl
@@ -53,7 +49,6 @@ def run_experiment(local_rank: int, opts: jo.RunExperimentOptions):
 
 
 def evaluate_experiment(local_rank: int, opts: jo.EvaluateExperimentOptions):
-    """Gather results for a model and store in a data frame."""
     spec = hp.load_spec(opts)
     if spec.model.type == 'class':
         import postpro.evaluators.evaluator_class as ecl
@@ -70,4 +65,4 @@ def evaluate_experiment(local_rank: int, opts: jo.EvaluateExperimentOptions):
 
 
 def visualise_model(opts: jo.VisualiseExperimentOptions):
-    pass
+    raise NotImplementedError

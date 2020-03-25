@@ -73,10 +73,8 @@ class I3DDecoder(nn.Module):
 
         _out = _in.reshape(b * s, c, t, h, w)
 
-        # print(f'{"decoder input":20s}:\t{in_spatial.shape}')
         for name, module in list(self.named_children())[:-1]:
             _out = module(_out)
-            # print(f'{name:20s}:\t{in_spatial.shape}')
 
         if not self.training:
             _out = self.sigmoid(_out)

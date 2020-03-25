@@ -32,7 +32,6 @@ class VariationalAutoEncoderEvaluator(_base.BaseEvaluator):
         return train_evaluator, dev_evaluator, test_evaluator
 
     def _get_model_outputs(self, x: th.Tensor) -> t.Dict[str, th.Tensor]:
-        """Get outputs of interest from a model."""
         recon, energy, temporal_embed, class_embed, mean, var, vote = self.model(x, ct.VAE_NUM_SAMPLES_TEST)
         conf = func.softmax(energy, dim=-1)
 
@@ -44,7 +43,6 @@ class VariationalAutoEncoderEvaluator(_base.BaseEvaluator):
         }
 
     def _get_projections(self, embed_name: str, sample_embeds: np.ndarray) -> np.ndarray:
-        """Get tsne projections."""
         if embed_name == 'class_embeds':
             n, s, c = sample_embeds.shape
             sample_embeds = sample_embeds.reshape([n * s, c])
@@ -53,10 +51,12 @@ class VariationalAutoEncoderEvaluator(_base.BaseEvaluator):
             sample_tsne = skm.TSNE(2, verbose=1, random_state=ct.RANDOM_STATE).fit_transform(sample_pca)
             sample_tsne = sample_tsne.reshape([n, s, 2])
         elif embed_name == 'temporal_embeds':
-            if sample_embeds.ndim == 6:  # sequence models
+            # sequence models
+            if sample_embeds.ndim == 6:
                 n, s, _t, c, h, w = sample_embeds.shape
                 sample_embeds = sample_embeds.reshape([n * s, _t, c * h * w])
-            else:  # hierarchical models
+            # hierarchical models
+            else:
                 _t = 1
                 n, s, c, h, w = sample_embeds.shape
                 sample_embeds = sample_embeds.reshape([n * s, _t, c * h * w])

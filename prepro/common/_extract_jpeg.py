@@ -13,7 +13,6 @@ DATA_ROOT_DIR = None
 
 
 def _extract_jpeg(batch: Tuple[int, List[pd.Series]]) -> ghp.parallel.Result:
-    """Create a batch of augmented rows."""
     no, batch = batch
 
     for index, row in batch:

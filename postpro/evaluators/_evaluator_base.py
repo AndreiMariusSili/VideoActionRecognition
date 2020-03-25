@@ -46,7 +46,6 @@ class BaseEvaluator(abc.ABC):
         self.logger.init_log()
 
     def _init_distributed(self) -> t.Tuple[int, int]:
-        """Create distributed setup."""
         if dist.is_available() and self.local_rank != -1:
             dist.init_process_group(backend='nccl')
             rank = dist.get_rank()
@@ -58,14 +57,12 @@ class BaseEvaluator(abc.ABC):
         return rank, world_size
 
     def _get_best_ckpt(self) -> str:
-        """Get the path to the best checkpoint."""
         best_models = list(glob.glob((ct.WORK_ROOT / self.opts.run_dir / 'ckpt' / 'best_model_*.pth').as_posix()))
         if len(best_models) > 1:
             raise ValueError('More than one best model available. Remove old versions.')
         return best_models.pop()
 
     def _init_model(self) -> nn.Module:
-        """Initialize, resume model. One process, multi-gpu."""
         opts = dc.asdict(copy.deepcopy(self.opts.model.opts))
         del opts['batch_size']
         model = sm.Models[self.opts.model.arch].value(**opts).to(self.device)
@@ -86,10 +83,9 @@ class BaseEvaluator(abc.ABC):
 
     @abc.abstractmethod
     def _init_evaluators(self) -> t.Tuple[ie.Engine, ie.Engine, ie.Engine]:
-        """Initialize the evaluator engines."""
+        raise NotImplementedError
 
     def _init_databunch(self) -> t.Tuple[db.VideoDataBunch, int]:
-        """Load the data bunch. All options are already set in the runner."""
         self.opts.databunch.train_dso.setting = 'eval'
         self.opts.databunch.dev_dso.setting = 'eval'
         self.opts.databunch.test_dso.setting = 'eval'
@@ -100,7 +96,6 @@ class BaseEvaluator(abc.ABC):
         return data_bunch, len(data_bunch.lids)
 
     def evaluate_split(self, split: str) -> 'BaseEvaluator':
-        """Calculate results for a split and log."""
         assert split in ['train', 'dev', 'test'], f'Unknown split: {split}.'
         self.logger.log(f'Evaluating {split} split...')
         (ct.WORK_ROOT / self.opts.run_dir / split).mkdir(parents=True, exist_ok=True)
@@ -127,14 +122,12 @@ class BaseEvaluator(abc.ABC):
         return self
 
     def _calculate_metrics(self, evaluator: ie.Engine, loader: tud.DataLoader, split: str) -> t.Dict[str, float]:
-        """Calculate metrics using an evaluator engine."""
         evaluator.run(loader)
         self._aggregate_metrics(evaluator)
 
         return {f'{split}_{k}': float(v) for k, v in evaluator.state.metrics.items()}
 
-    def _calculate_results(self, loader: tud.DataLoader, split: str) -> RESULTS:
-        """Calculate extra results: predictions, embeddings, etc."""
+    def _calculate_results(self, loader: tud.DataLoader) -> RESULTS:
         ids, targets = [], []
         outs = cl.defaultdict(list)
 
@@ -161,14 +154,13 @@ class BaseEvaluator(abc.ABC):
 
     @abc.abstractmethod
     def _get_model_outputs(self, x: th.Tensor) -> t.Dict[str, th.Tensor]:
-        """Get outputs of interest from a model."""
+        raise NotImplementedError
 
     @abc.abstractmethod
     def _get_projections(self, embed_name: str, sample_embeds: np.ndarray) -> np.ndarray:
-        """Get tsne projections."""
+        raise NotImplementedError
 
     def _calculate_tsnes(self, outs: t.Dict[str, np.ndarray], ids: np.ndarray, split: str) -> TSNE:
-        """Calculate TSNE projections for embeddings. Samples from train set because it's too big."""
         outs_proj = {}
 
         if split == 'train' and not self.opts.debug:
@@ -188,7 +180,6 @@ class BaseEvaluator(abc.ABC):
         return outs_proj, sample_ids
 
     def _aggregate_metrics(self, _engine: ie.Engine) -> None:
-        """Gather evaluation metrics. Performs a reduction step if in distributed setting."""
         local_names, global_names, values = [], [], []
         for key, value in _engine.state.metrics.items():
             local_names.append(key)
@@ -198,7 +189,6 @@ class BaseEvaluator(abc.ABC):
         _engine.state.metrics.update(zip(local_names, values.detach().cpu().numpy()))
 
     def start(self):
-        """Evaluates and stores result of a model."""
         try:
             self.evaluate_split('train').evaluate_split('dev').evaluate_split('test')
             self.logger.persist_experiment()
