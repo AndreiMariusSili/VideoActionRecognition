@@ -9,12 +9,10 @@ import prepro.helpers as php
 
 
 def _store_stats(stats: Dict[str, List[float]], stats_path: pl.Path) -> None:
-    """Store the dimension statistics in the merged stats file."""
     pd.DataFrame.from_dict(data=stats, orient='columns').to_json(stats_path, orient='index')
 
 
 def main(dataset: str, split: int):
-    """Find maximum width and maximum height and store in a DataFrame."""
     _, _, merged_meta_path, _ = php.get_meta_paths(dataset, split)
     stats_path = php.get_stats_path(dataset, split)
 

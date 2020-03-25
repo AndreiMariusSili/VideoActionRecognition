@@ -60,7 +60,7 @@ def test_class_model(model_spec: str, time_steps: int):
     pred, temporal_embed, class_embed = model(_in)
 
     df = pd.DataFrame.from_dict({
-        'model': [model.NAME],  # noqa
+        'model': [model.NAME],
         'size': [f'{hp.count_parameters(model):,}'],
         'inference_speed': [f'{time:.4f}'],
         'preds': [str(tuple(pred.shape))],

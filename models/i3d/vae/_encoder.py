@@ -65,10 +65,8 @@ class I3DEncoder(nn.Module):
 
     def forward(self, _in: th.Tensor, num_samples: int) -> tp.Tuple[th.tensor, th.Tensor, th.Tensor]:
         _in = _in.transpose(1, 2).contiguous()
-        # print(f'{"encoder input":20s}:\t{in_spatial.shape}')
         for name, module in list(self.named_children())[:-3]:
             _in = module(_in)
-            # print(f'{name:20s}:\t{in_spatial.shape}')
 
         _mean = self.mean(_in)
         _var = self.var(_in) + 1e-5  # Lower bound variance of posterior to prevent infinite density.
@@ -79,7 +77,6 @@ class I3DEncoder(nn.Module):
             _z = self.rsample(_mean, _var, num_samples)
         else:
             _z = _mean.reshape(b, 1, c, t, h, w)
-        # print(f'{"encoder log_var":20s}:\t{_var.shape}\n{"encoder mean":20s}:\t{_mean.shape}')
 
         return _z, _mean, _var
 

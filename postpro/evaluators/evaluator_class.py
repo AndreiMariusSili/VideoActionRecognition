@@ -29,7 +29,6 @@ class ClassEvaluator(_base.BaseEvaluator):
         return train_evaluator, dev_evaluator, test_evaluator
 
     def _get_model_outputs(self, x: th.Tensor) -> t.Dict[str, np.ndarray]:
-        """Get outputs of interest from a model."""
         energy, temporal_embed, class_embed = self.model(x)
         conf = func.softmax(energy, dim=-1)
 
@@ -40,17 +39,18 @@ class ClassEvaluator(_base.BaseEvaluator):
         }
 
     def _get_projections(self, embed_name: str, sample_embeds: np.ndarray) -> np.ndarray:
-        """Get tsne projections."""
         if embed_name == 'class_embeds':
             n, c = sample_embeds.shape
             pca_ndim = min(n, c, 64)
             sample_pca = skd.PCA(pca_ndim, random_state=ct.RANDOM_STATE).fit_transform(sample_embeds)
             sample_tsne = skm.TSNE(2, verbose=1, random_state=ct.RANDOM_STATE).fit_transform(sample_pca)
         elif embed_name == 'temporal_embeds':
-            if sample_embeds.ndim == 5:  # sequence models
+            # sequence models
+            if sample_embeds.ndim == 5:
                 n, _t, c, h, w = sample_embeds.shape
                 sample_embeds = sample_embeds.reshape([n, _t, c * h * w])
-            else:  # hierarchical models
+            # hierarchical models
+            else:
                 _t = 1
                 n, c, h, w = sample_embeds.shape
                 sample_embeds = sample_embeds.reshape([n, _t, c * h * w])

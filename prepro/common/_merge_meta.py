@@ -7,7 +7,6 @@ import prepro.helpers as php
 
 
 def merge_meta(train_path: pl.Path, dev_path: pl.Path, merged_path: pl.Path) -> None:
-    """Merges train and dev DataFrames into single DataFrame and stores as json."""
     train_meta = ghp.read_meta(train_path)
     dev_meta = ghp.read_meta(dev_path)
 

@@ -1,4 +1,3 @@
-"""Holds specifications for evaluators."""
 import options.experiment_options
 
 ########################################################################################################################

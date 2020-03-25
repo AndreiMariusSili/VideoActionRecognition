@@ -6,7 +6,6 @@ from torch import nn
 import models.tarn.common.helpers as tchp
 
 
-# noinspection PyUnresolvedReferences
 class Standardize(nn.Module):
     def __init__(self, means: List[float], stds: List[float]):
         super(Standardize, self).__init__()
@@ -14,7 +13,7 @@ class Standardize(nn.Module):
         self.stds = nn.Parameter(th.tensor(stds, dtype=th.float).reshape((1, 3, 1, 1)), requires_grad=False)
 
     def forward(self, _in: th.Tensor) -> th.Tensor:
-        return _in.sub(self.means).div(self.stds)
+        return _in.sub(self.means).div(self.stds)  # noqa
 
 
 class TransSpatialResidualBlock(nn.Module):

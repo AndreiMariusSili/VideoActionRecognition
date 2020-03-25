@@ -19,9 +19,9 @@ class VarSpatialResNetEncoder(nn.Module):
         self.max_pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
         self.layers = nn.ModuleList()
-        self.layers.append(self._make_layer(self.out_planes[1], 2))  # noqa
+        self.layers.append(self._make_layer(self.out_planes[1], 2))
         for out_plane in self.out_planes[2:]:
-            self.layers.append(self._make_layer(out_plane, 2, stride=2))  # noqa
+            self.layers.append(self._make_layer(out_plane, 2, stride=2))
         self.bottleneck = nn.Sequential(
             tc.conv1x1(self.in_planes, self.bottleneck_planes),
             nn.BatchNorm2d(self.bottleneck_planes, eps=0.001),
@@ -52,10 +52,9 @@ class VarSpatialResNetEncoder(nn.Module):
         _out = self.relu(_out)
         _out = self.max_pool(_out)
 
-        for layer in self.layers:  # noqa
+        for layer in self.layers:
             _out = layer(_out)
         _out = self.bottleneck(_out)
 
         _, c, h, w = _out.shape
-        # add 1 for the sampling dimension
-        return _out.reshape(b, 1, t, c, h, w)
+        return _out.reshape(b, 1, t, c, h, w)  # add 1 for the sampling dimension

@@ -29,7 +29,6 @@ class AutoEncoderEvaluator(_base.BaseEvaluator):
         return train_evaluator, dev_evaluator, test_evaluator
 
     def _get_model_outputs(self, x: th.Tensor) -> t.Dict[str, th.Tensor]:
-        """Get outputs of interest from a model."""
         recon, energy, temporal_embed, class_embed, *_ = self.model(x)
         conf = func.softmax(energy, dim=-1)
 
@@ -40,7 +39,6 @@ class AutoEncoderEvaluator(_base.BaseEvaluator):
         }
 
     def _get_projections(self, embed_name: str, sample_embeds: np.ndarray) -> np.ndarray:
-        """Get tsne projections."""
         if embed_name == 'class_embeds':
             n, c = sample_embeds.shape
             pca_ndim = min(n, c, 64)

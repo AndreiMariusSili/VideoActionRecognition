@@ -72,11 +72,6 @@ def select_top_classes(num_classes: int):
 
 
 def main(opts: jo.SelectSubsetOptions):
-    """Select ct.SMTH_SUBSET_CLASS_CARD number of num_classes to create a subset of the original dataset. All excluded
-    num_classes are moved to EXCLUDED_WEBM_DIR. Selects top num_classes based on number of examples in a class.
-
-    :return:
-    """
     env.LOGGER.info(f'Selecting subset of {opts.num_classes} classes for smth dataset...')
     prepare_excluded_dir()
     create_class_card_rank()

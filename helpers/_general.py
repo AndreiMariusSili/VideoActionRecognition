@@ -16,14 +16,12 @@ def count_parameters(model: nn.Module) -> int:
 
 
 def read_meta(path: tp.Union[pl.Path, str]) -> pd.DataFrame:
-    """Read in the meta json as a DataFrame."""
     path = ct.WORK_ROOT / pl.Path(path)
 
     return pd.read_json(path, orient='index').sort_index()
 
 
 def read_stats(path: pl.Path) -> pd.DataFrame:
-    """Read in the stats json as a DataFrame."""
     path = ct.WORK_ROOT / pl.Path(path)
     df = pd.read_json(path, orient='index', typ='frame')
 
@@ -31,7 +29,6 @@ def read_stats(path: pl.Path) -> pd.DataFrame:
 
 
 def read_results(path: tp.Union[pl.Path, str]) -> pd.DataFrame:
-    """Read in the results json as a DataFrame."""
     path = ct.WORK_ROOT / pl.Path(path)
     df = pd.read_pickle(path, compression=None)
 
@@ -39,19 +36,16 @@ def read_results(path: tp.Union[pl.Path, str]) -> pd.DataFrame:
 
 
 def read_lid2gid(path: pl.Path) -> pd.DataFrame:
-    """Read the lid2gid json as a DataFrame."""
     return pd.read_json(path, orient='index').astype({'lid': int, 'gid': int}).sort_index()
 
 
 def read_label2lid(path: pl.Path) -> pd.DataFrame:
-    """Read in the label2id json as a DataFrame. JSON expected to be in index format."""
     df = pd.read_json(path, orient='index', typ='frame', dtype=False)
 
     return df
 
 
 def read_smth_lid2label(path: pl.Path) -> pd.DataFrame:
-    """Read in the label2lid json as a DataFrame and convert to lid2labels."""
     df = pd.read_json(path, orient='index', typ='frame', dtype=True, encoding='utf-8')
     df = df.set_index('id', drop=False, verify_integrity=True)
 
@@ -59,7 +53,6 @@ def read_smth_lid2label(path: pl.Path) -> pd.DataFrame:
 
 
 def read_gid2labels(path: pl.Path = ct.SMTH_GID2LABELS) -> pd.DataFrame:
-    """Read in the gid2labels json as a DataFrame."""
     df = pd.read_json(path, orient='index', typ='frame', dtype=True, encoding='utf-8')
     df.index = df.index.map(lambda x: (int(x.replace('[', '').replace(']', '').split(',')[0]),
                                        int(x.replace('[', '').replace(']', '').split(',')[1])))
@@ -70,14 +63,12 @@ def read_gid2labels(path: pl.Path = ct.SMTH_GID2LABELS) -> pd.DataFrame:
 
 
 def read_smth_label2gid(path: pl.Path = ct.SMTH_LABEL2GID) -> pd.DataFrame:
-    """Read in the gid2labels json as a DataFrame."""
     df = pd.read_json(path, orient='index', typ='frame', dtype=True, encoding='utf-8')
 
     return df
 
 
 def read_smth_lid2gid() -> pd.DataFrame:
-    """Create a lid2gid DataFrame from 2 jsons."""
     label2gid = read_smth_label2gid(ct.SMTH_LABEL2GID)
     label2gid.columns = ['gid']
 
@@ -90,13 +81,6 @@ def read_smth_lid2gid() -> pd.DataFrame:
 
 
 def flatten_dict(nested_dict: tp.Dict[tp.Any, tp.Any], parent_key='', sep='@') -> tp.Dict[tp.Any, str]:
-    """Flatten a nexted dictionary joining keys with `sep`.
-
-    :param nested_dict: The nested dict.
-    :param sep: Key separator.
-    :param parent_key: Key to prepend to each dict key.
-    :return: the flattened dict.
-    """
     items = []
     for k, v in nested_dict.items():
         new_key = parent_key + sep + k if parent_key else k
@@ -108,11 +92,6 @@ def flatten_dict(nested_dict: tp.Dict[tp.Any, tp.Any], parent_key='', sep='@') -
 
 
 def path_to_string(nested_dict: tp.Dict[tp.Any, tp.Any]):
-    """Convert all paths into string in a dictionary.
-
-    :param nested_dict: A possibly nested dictionary/
-    :return:
-    """
     for k, v in nested_dict.items():
         if isinstance(v, dict):
             path_to_string(nested_dict[k])
@@ -121,8 +100,6 @@ def path_to_string(nested_dict: tp.Dict[tp.Any, tp.Any]):
 
 
 def build_spec(opts: jo.EXPERIMENT_JOB_OPTIONS) -> eo.ExperimentOptions:
-    """Build the spec from the spec name provided."""
-
     name = _build_name(opts)
     model: mo.MODELS = getattr(specs.models, f'{opts.model}_{opts.frames}')
     dbo_name = f'dbo_{opts.frames}_flow' if '_flow' in opts.model else f'dbo_{opts.frames}'

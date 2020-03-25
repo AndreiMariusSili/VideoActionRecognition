@@ -27,17 +27,12 @@ import specs.maps as sm
 
 
 def flow2img(flow_data):
-    """
-    convert optical flow into color image
-    :param flow_data:
-    :return: color image
-    """
     u = flow_data[:, :, 0]
     v = flow_data[:, :, 1]
 
-    UNKNOW_FLOW_THRESHOLD = 1e7
-    pr1 = abs(u) > UNKNOW_FLOW_THRESHOLD
-    pr2 = abs(v) > UNKNOW_FLOW_THRESHOLD
+    unknow_flow_threshold = 1e7
+    pr1 = abs(u) > unknow_flow_threshold
+    pr2 = abs(v) > unknow_flow_threshold
     idx_unknown = (pr1 | pr2)
     u[idx_unknown] = v[idx_unknown] = 0
 
@@ -55,13 +50,6 @@ def flow2img(flow_data):
 
 
 def compute_color(u, v):
-    """
-    compute optical flow color map
-    :param u: horizontal optical flow
-    :param v: vertical optical flow
-    :return:
-    """
-
     height, width = u.shape
     img = np.zeros((height, width, 3))
 
@@ -100,53 +88,49 @@ def compute_color(u, v):
 
 
 def make_color_wheel():
-    """
-    Generate color wheel according Middlebury color code
-    :return: Color wheel
-    """
-    RY = 15
-    YG = 6
+    ry = 15
+    yg = 6
     GC = 4
-    CB = 11
-    BM = 13
-    MR = 6
+    cb = 11
+    bm = 13
+    mr = 6
 
-    ncols = RY + YG + GC + CB + BM + MR
+    ncols = ry + yg + GC + cb + bm + mr
 
-    colorwheel = np.zeros([ncols, 3])
+    color_wheel = np.zeros([ncols, 3])
 
     col = 0
 
     # RY
-    colorwheel[0:RY, 0] = 255
-    colorwheel[0:RY, 1] = np.transpose(np.floor(255 * np.arange(0, RY) / RY))
-    col += RY
+    color_wheel[0:ry, 0] = 255
+    color_wheel[0:ry, 1] = np.transpose(np.floor(255 * np.arange(0, ry) / ry))
+    col += ry
 
     # YG
-    colorwheel[col:col + YG, 0] = 255 - np.transpose(np.floor(255 * np.arange(0, YG) / YG))
-    colorwheel[col:col + YG, 1] = 255
-    col += YG
+    color_wheel[col:col + yg, 0] = 255 - np.transpose(np.floor(255 * np.arange(0, yg) / yg))
+    color_wheel[col:col + yg, 1] = 255
+    col += yg
 
     # GC
-    colorwheel[col:col + GC, 1] = 255
-    colorwheel[col:col + GC, 2] = np.transpose(np.floor(255 * np.arange(0, GC) / GC))
+    color_wheel[col:col + GC, 1] = 255
+    color_wheel[col:col + GC, 2] = np.transpose(np.floor(255 * np.arange(0, GC) / GC))
     col += GC
 
     # CB
-    colorwheel[col:col + CB, 1] = 255 - np.transpose(np.floor(255 * np.arange(0, CB) / CB))
-    colorwheel[col:col + CB, 2] = 255
-    col += CB
+    color_wheel[col:col + cb, 1] = 255 - np.transpose(np.floor(255 * np.arange(0, cb) / cb))
+    color_wheel[col:col + cb, 2] = 255
+    col += cb
 
     # BM
-    colorwheel[col:col + BM, 2] = 255
-    colorwheel[col:col + BM, 0] = np.transpose(np.floor(255 * np.arange(0, BM) / BM))
-    col += + BM
+    color_wheel[col:col + bm, 2] = 255
+    color_wheel[col:col + bm, 0] = np.transpose(np.floor(255 * np.arange(0, bm) / bm))
+    col += + bm
 
     # MR
-    colorwheel[col:col + MR, 2] = 255 - np.transpose(np.floor(255 * np.arange(0, MR) / MR))
-    colorwheel[col:col + MR, 0] = 255
+    color_wheel[col:col + mr, 2] = 255 - np.transpose(np.floor(255 * np.arange(0, mr) / mr))
+    color_wheel[col:col + mr, 0] = 255
 
-    return colorwheel
+    return color_wheel
 
 
 def recon2frames(recon: np.ndarray, flow: bool = False) -> t.List[np.ndarray]:
@@ -162,14 +146,6 @@ def recon2frames(recon: np.ndarray, flow: bool = False) -> t.List[np.ndarray]:
 
 def plot_frames(frames: t.List[np.ndarray], titles: t.List[str] = None, cols: int = 1,
                 group: bool = True) -> t.Union[plt.Figure, t.List[plt.Figure]]:
-    """Display a list of images in a single figure with matplotlib.
-
-    :param frames: List of np.arrays compatible with plt.imshow.
-    :param titles: List of titles corresponding to each image. Must have the same length as images.
-    :param cols: Number of columns in figure (number of rows is set to np.ceil(n_images/float(cols))).
-    :param group: Whether to grp recon in a single subplot or plot separately.
-    :return: The plt Figure object.
-    """
     assert ((titles is None) or (len(frames) == len(titles)))
     num_frames = len(frames)
     if titles is None:
@@ -203,12 +179,6 @@ def plot_frames(frames: t.List[np.ndarray], titles: t.List[str] = None, cols: in
 
 
 def plot_class_heat_map(class_values: np.ndarray, title: str = None) -> plt.Figure:
-    """Plot a heat map of the class distribution.
-
-    :param class_values: A one-dimensional vector of class distribution.
-    :param title: The figure title.
-    :return: The plt Figure object.
-    """
     fig: plt.Figure = plt.figure()
     plt.imshow(class_values, cmap='gray')
     if title:
@@ -242,14 +212,12 @@ class BaseVisualiser(abc.ABC):
             th.set_grad_enabled(False)
 
     def _get_best_ckpt(self) -> str:
-        """Get the path to the best checkpoint."""
         best_models = list(glob.glob((ct.WORK_ROOT / self.opts.run_dir / 'ckpt' / 'best_model_*.pth').as_posix()))
         if len(best_models) > 1:
             raise ValueError('More than one best model available. Remove old versions.')
         return best_models.pop()
 
     def _init_model(self) -> nn.Module:
-        """Initialize, resume model. One process, multi-gpu."""
         opts = dc.asdict(copy.deepcopy(self.opts.model.opts))
         del opts['batch_size']
         model = sm.Models[self.opts.model.arch].value(**opts).to(self.device)
@@ -260,7 +228,6 @@ class BaseVisualiser(abc.ABC):
         return model
 
     def _init_databunch(self) -> t.Tuple[db.VideoDataBunch, int]:
-        """Load the data bunch. All options are already set in the runner."""
         self.opts.databunch.train_dso.read_jpeg = False
         self.opts.databunch.dev_dso.read_jpeg = False
         self.opts.databunch.test_dso.read_jpeg = False
@@ -458,16 +425,8 @@ class BaseVisualiser(abc.ABC):
 
     @abc.abstractmethod
     def recons(self, video: dv.Video) -> t.List[th.Tensor]:
-        """Get the reconstruction from the model.
-
-        :param video: A video object.
-        :return: A numpy array and the number of reconstructions.
-        """
+        raise NotImplementedError
 
     @abc.abstractmethod
     def preds(self, video: dv.Video) -> t.List[th.Tensor]:
-        """Get a prediction from a video.
-
-        :param video: A video object.
-        :return: A numpy array of C length.
-        """
+        raise NotImplementedError

@@ -77,7 +77,6 @@ class BaseRunner(abc.ABC):
         self._init_events()
 
     def _init_distributed(self) -> typ.Tuple[int, int, bool, bool]:
-        """Create distributed setup."""
         if dist.is_available() and self.local_rank != -1:
             dist.init_process_group(backend='nccl')
             rank = dist.get_rank()
@@ -91,7 +90,6 @@ class BaseRunner(abc.ABC):
 
     @_Decorator.sync
     def _init_run(self) -> pth.Path:
-        """Create the run directory and store the run options."""
         run_dir = ct.WORK_ROOT / ct.RUNS_ROOT / self.opts.name
         if self.main_proc:
             run_dir.mkdir(parents=True, exist_ok=True)
@@ -117,7 +115,6 @@ class BaseRunner(abc.ABC):
 
     @_Decorator.sync
     def _init_databunch(self) -> typ.Tuple[db.VideoDataBunch, int]:
-        """Init databunch optionally for distributed setting. Calculate number of num_classes."""
         # flag use of distributed sampler
         self.opts.databunch.distributed = self.distributed
 
@@ -151,7 +148,6 @@ class BaseRunner(abc.ABC):
 
     @_Decorator.sync
     def _init_model(self) -> typ.Tuple[nn.Module, str]:
-        """Initialize, resume model."""
         num_segments = self.opts.databunch.so.num_segments
         self.opts.model.opts.time_steps = num_segments
         opts = dc.asdict(copy.deepcopy(self.opts.model.opts))
@@ -179,7 +175,6 @@ class BaseRunner(abc.ABC):
 
     @_Decorator.sync
     def _init_criterion(self):
-        """Initialize loss function to correct device."""
         criterion = sm.Criteria[self.opts.trainer.criterion].value()
 
         return criterion.to(self.device)
@@ -198,7 +193,6 @@ class BaseRunner(abc.ABC):
 
     @_Decorator.sync
     def _init_lr_scheduler(self):
-        """Initialize a LR scheduler that reduces the LR when there was no improvement for some epochs."""
         lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer,
                                                       milestones=self.opts.trainer.lr_milestones,
                                                       gamma=self.opts.trainer.lr_gamma)
@@ -214,13 +208,12 @@ class BaseRunner(abc.ABC):
     @_Decorator.sync
     @abc.abstractmethod
     def _init_engines(self) -> typ.Tuple[ie.Engine, ie.Engine]:
-        """Initialize the trainer and evaluator engines."""
         raise NotImplementedError
 
     @_Decorator.sync
     @abc.abstractmethod
     def _init_runner_specific_handlers(self):
-        """Register handlers specific to runner type."""
+        raise NotImplementedError
 
     @_Decorator.sync
     def _init_events(self) -> None:
@@ -251,8 +244,6 @@ class BaseRunner(abc.ABC):
     @_Decorator.sync
     @_Decorator.main_proc_only
     def _init_checkpoint_handlers(self) -> typ.Tuple[ih.ModelCheckpoint, ih.ModelCheckpoint, dict]:
-        """Initialize a handler that will store the state dict of the model ,optimizer and scheduler for the best
-        and latest models."""
         require_empty = not self.opts.resume
         ckpt_dir = ct.WORK_ROOT / self.opts.run_dir / 'ckpt'
         ckpt_args = {
@@ -286,7 +277,6 @@ class BaseRunner(abc.ABC):
             json.dump(state, file, indent=True)
 
     def _resume_trainer_state(self, _: ie.Engine) -> None:
-        """Event handler for start of training. Resume trainer state."""
         if self.opts.resume:
             print(
                 f'Loading trainer state from {str(ct.WORK_ROOT / self.opts.run_dir / "ckpt" / "trainer_state.json")}')
@@ -296,7 +286,6 @@ class BaseRunner(abc.ABC):
                 self.trainer.state.epoch = state['epoch']
 
     def _set_distributed_sampler_seed(self, _engine: ie.Engine) -> None:
-        """Event handler for start of epoch. Sets epoch of distributed train sampler for seeding."""
         if self.distributed:
             self.data_bunch.train_sampler.set_epoch(_engine.state.epoch)
 
@@ -308,17 +297,14 @@ class BaseRunner(abc.ABC):
             dist.destroy_process_group()
 
     def _graceful_shutdown(self, _engine: ie.Engine, exception: Exception) -> None:
-        """Event handler for raised exception. Performs cleanup. Sends slack notification."""
         self._end_run(_engine)
 
         raise exception
 
     def _evaluate(self, _engine: ie.Engine) -> None:
-        """Evaluate on dev set."""
         self.evaluator.run(self.data_bunch.dev_loader)
 
     def _aggregate_metrics(self, _engine: ie.Engine) -> None:
-        """Gather evaluation metrics. Performs a reduction step if in distributed setting."""
         local_names, global_names, values = [], [], []
         for key, value in _engine.state.metrics.items():
             local_names.append(key)
@@ -337,14 +323,12 @@ class BaseRunner(abc.ABC):
     def _neg_dev_total_loss(self, _: ie.Engine):
         return -self.evaluator.state.metrics['total_loss']
 
-    def run(self) -> None:
-        """Start a run."""
-        if self.distributed:
-            dist.barrier()
-        self.trainer.run(self.data_bunch.train_loader, max_epochs=self.opts.trainer.epochs)
-
     def _reduce_loss(self, loss: th.Tensor):
-        """Average loss across processes and move to cpu."""
         if self.distributed:
             dist.all_reduce(loss)
         return loss.cpu()
+
+    def run(self) -> None:
+        if self.distributed:
+            dist.barrier()
+        self.trainer.run(self.data_bunch.train_loader, max_epochs=self.opts.trainer.epochs)

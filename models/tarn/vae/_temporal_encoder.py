@@ -101,7 +101,7 @@ class VarTemporalResNetEncoder(nn.Module):
         for _t in range(self.time_steps):
             _z_prev = _z
             _in_t = _in[:, :, _t, :, :, :]
-            _z, _mean, _var = self.temporal[_t](_in_t, _z_prev, num_samples_per_step[_t])  # noqa
+            _z, _mean, _var = self.temporal[_t](_in_t, _z_prev, num_samples_per_step[_t])
 
             b, s, c, h, w = _z.shape
             _zs.append(_z.reshape(b, s, 1, c, h, w))

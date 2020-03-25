@@ -3,11 +3,11 @@ import pathlib as pl
 import typing as t
 
 import cv2
-import cv2.optflow as optf  # noqa
+import cv2.optflow as optf
 import imgaug.augmenters as ia
 import numpy as np
 import torch as th
-import torchvision.transforms.functional as F  # noqa
+import torchvision.transforms.functional as tv_func
 
 import databunch.video_meta as vm
 
@@ -54,7 +54,7 @@ class Video(object):
         return recon
 
     def _cut_locs(self) -> np.ndarray:
-        all_locs = np.arange(self.meta.length)  # disregard first and last frames, as they may be blank.
+        all_locs = np.arange(self.meta.length)
         cut_locs = all_locs[0:self.cut]
 
         return np.array(cut_locs)
@@ -122,8 +122,8 @@ class Video(object):
         return _flow
 
     def to_tensor(self):
-        self.data = [F.to_tensor(frame) for frame in self.data]
-        self.recon = [F.to_tensor(flow) for flow in self.recon]
+        self.data = [tv_func.to_tensor(frame) for frame in self.data]
+        self.recon = [tv_func.to_tensor(flow) for flow in self.recon]
 
     def to_numpy(self):
         if isinstance(self.data, list):
@@ -133,7 +133,7 @@ class Video(object):
         if isinstance(self.recon, list):
             for i in range(len(self.recon)):
                 if isinstance(self.recon[i], th.Tensor):
-                    self.recon[i] = self.recon[i].cpu().numpy()  # noqa
+                    self.recon[i] = self.recon[i].cpu().numpy()
         self.data = np.transpose(np.stack(self.data, axis=0), axes=(0, 2, 3, 1))
         self.recon = np.transpose(np.stack(self.recon, axis=0), axes=(0, 2, 3, 1))
 

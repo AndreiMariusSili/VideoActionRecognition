@@ -3,7 +3,6 @@ import torch as th
 
 
 def prepare_batch(batch, device, non_blocking):
-    """Prepare batch for training: pass to a device with options."""
     input_data, class_target_data, recon_target_data, _ = batch
     input_data = ie.convert_tensor(input_data, device=device, non_blocking=non_blocking)
     class_target_data = ie.convert_tensor(class_target_data, device=device, non_blocking=non_blocking)
@@ -13,7 +12,6 @@ def prepare_batch(batch, device, non_blocking):
 
 
 def create_cls_trainer(model, optimizer, crt, metrics=None, device=th.device('cpu'), non_blocking=True) -> ie.Engine:
-    """Create classification trainer."""
     if device:
         model.to(device)
 
@@ -36,7 +34,6 @@ def create_cls_trainer(model, optimizer, crt, metrics=None, device=th.device('cp
 
 
 def create_cls_evaluator(model, metrics=None, device=th.device('cpu'), non_blocking=True) -> ie.Engine:
-    """Create classification evaluator."""
     if device:
         model.to(device)
 
@@ -56,7 +53,6 @@ def create_cls_evaluator(model, metrics=None, device=th.device('cpu'), non_block
 
 
 def create_ae_trainer(model, optimizer, crt, metrics=None, device=th.device('cpu'), non_blocking=True) -> ie.Engine:
-    """Create auto-encoder trainer."""
     if device:
         model.to(device)
 
@@ -92,7 +88,6 @@ def create_ae_trainer(model, optimizer, crt, metrics=None, device=th.device('cpu
 
 
 def create_ae_evaluator(model, metrics=None, device=th.device('cpu'), non_blocking=True) -> ie.Engine:
-    """Create auto-encoder evaluator."""
     if device:
         model.to(device)
 
@@ -112,7 +107,6 @@ def create_ae_evaluator(model, metrics=None, device=th.device('cpu'), non_blocki
 
 
 def create_gsnn_trainer(model, optimizer, crt, metrics=None, device=th.device('cpu'), non_blocking=True) -> ie.Engine:
-    """Create variational auto-encoder trainer."""
     if device:
         model.to(device)
 
@@ -148,7 +142,6 @@ def create_gsnn_trainer(model, optimizer, crt, metrics=None, device=th.device('c
 
 
 def create_gsnn_evaluator(model, metrics=None, device=None, num_samples: int = None, non_blocking=True) -> ie.Engine:
-    """Create variational auto-encoder evaluator."""
     if device:
         model.to(device)
 
@@ -168,7 +161,6 @@ def create_gsnn_evaluator(model, metrics=None, device=None, num_samples: int = N
 
 
 def create_vae_trainer(model, optimizer, crt, metrics=None, device=th.device('cpu'), non_blocking=True) -> ie.Engine:
-    """Create variational auto-encoder trainer."""
     if device:
         model.to(device)
 
@@ -206,7 +198,6 @@ def create_vae_trainer(model, optimizer, crt, metrics=None, device=th.device('cp
 
 
 def create_vae_evaluator(model, metrics=None, device=None, num_samples: int = None, non_blocking=True) -> ie.Engine:
-    """Create variational auto-encoder evaluator."""
     if device:
         model.to(device)
 
